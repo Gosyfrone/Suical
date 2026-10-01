@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suical</title>
+<meta name="theme-color" content="#15302A">
+<meta name="description" content="Suivi du stock, des plats et des apports nutritionnels, hors ligne.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF2EF; --surface:#FFFFFF; --ink:#15302A; --muted:#5B6E68; --line:#D3DDD8;
+  --yolk:#F2B705; --yolk-ink:#15302A; --tomato:#C8412F; --tomato-bg:#FBE9E6; --ok:#2F7A5B;
+  --font:"Archivo","Helvetica Neue",Arial,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1E1B; --surface:#162925; --ink:#E4EEEA; --muted:#93A7A0; --line:#28403A;
+    --tomato:#F06A55; --tomato-bg:#3A1F1B; --ok:#6CC49D;
+  }
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--yolk);outline-offset:2px}
+h1{margin:0;font-size:1.45rem;font-weight:800;font-stretch:78%;line-height:1.1}
+h2{font-size:1.02rem;font-weight:700;margin:24px 0 8px;color:var(--muted)}
+h2:first-child{margin-top:4px}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.head-inner{max-width:760px;margin:0 auto;padding:12px 16px 0}
+.sub{font-size:.78rem;color:var(--muted);margin-top:2px}
+nav{display:flex;gap:2px;margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+nav button{flex:1 0 auto;border:0;background:none;padding:9px 10px 11px;font-weight:600;font-size:.92rem;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--yolk)}
+
+main{max-width:760px;margin:0 auto;padding:14px 16px 56px}
+section[hidden]{display:none}
+.empty{color:var(--muted);font-size:.9rem;padding:8px 0}
+.intro{margin:4px 0 0;color:var(--muted);font-size:.9rem}
+.link{border:0;background:none;color:var(--ink);text-decoration:underline;text-underline-offset:3px;padding:4px 0;font-weight:600}
+.primary{border:0;background:var(--ink);color:var(--bg);border-radius:999px;padding:10px 18px;font-weight:700}
+.ghost{border:1px solid var(--ink);background:none;border-radius:999px;padding:8px 14px;font-weight:600;font-size:.88rem}
+.danger{border:1px solid var(--tomato);color:var(--tomato);background:none;border-radius:999px;padding:8px 14px;font-weight:600;font-size:.88rem}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* plats */
+.dish{display:grid;grid-template-columns:70px 1fr;gap:0 12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.count{grid-row:span 2;display:flex;flex-direction:column;align-items:center;justify-content:center;height:70px;border-radius:14px;background:var(--yolk);color:var(--yolk-ink)}
+.count b{font-size:2.1rem;font-weight:800;font-stretch:65%;line-height:1}
+.count span{font-size:.7rem;font-weight:600}
+.count.zero{background:var(--tomato-bg);color:var(--tomato)}
+.dish-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dish-name{font-weight:700;font-size:1rem}
+.dish-ing{font-size:.84rem;color:var(--muted)}
+.dish-limit{font-size:.8rem;margin-top:2px}
+.dish-limit.zero{color:var(--tomato);font-weight:600}
+.eat{flex:none;border:2px solid var(--ink);background:var(--ink);color:var(--bg);border-radius:999px;padding:7px 15px;font-weight:700}
+.eat:disabled{background:none;color:var(--muted);border-color:var(--line);cursor:not-allowed}
+.log-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.log-row time{color:var(--muted);font-size:.8rem;margin-left:6px}
+
+/* nutrition */
+.nut{grid-column:1 / -1;margin-top:8px}
+.nut summary{cursor:pointer;font-size:.86rem;font-weight:600;padding:4px 0;list-style-position:inside}
+.macros{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0 10px}
+.macros div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center}
+.macros b{display:block;font-size:1.2rem;font-weight:800;font-stretch:72%;font-variant-numeric:tabular-nums}
+.macros span{font-size:.72rem;color:var(--muted)}
+.micro{display:grid;gap:5px}
+.micro-row{display:grid;grid-template-columns:minmax(88px,1.2fr) auto minmax(40px,1fr) 44px;gap:8px;align-items:center;font-size:.82rem}
+.micro-val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.micro-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.micro-bar i{display:block;height:100%;background:var(--ok)}
+.micro-pct{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.micro-note{font-size:.76rem;color:var(--muted);margin:8px 0 0}
+
+/* objectif */
+.goal{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin:4px 0 8px}
+.goal-top{display:flex;justify-content:space-between;align-items:baseline}
+.goal-label{font-weight:700}
+.goal-val{font-size:1.9rem;font-weight:800;font-stretch:68%;font-variant-numeric:tabular-nums}
+.goal input[type=range]{width:100%;margin:10px 0 2px;accent-color:var(--ink)}
+.goal-scale{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted)}
+.goal-status{margin:10px 0 4px;font-size:.88rem}
+.goal-warn{margin:4px 0;font-size:.84rem;color:var(--tomato);font-weight:600}
+.levers{display:grid;gap:4px;margin:10px 0 4px}
+.lever{display:grid;grid-template-columns:1fr auto 60px;gap:10px;font-size:.88rem;align-items:baseline}
+.lever b{font-variant-numeric:tabular-nums}
+.lever-d{text-align:right;color:var(--muted);font-size:.8rem}
+.lever-d.minus{color:var(--tomato)} .lever-d.plus{color:var(--ok)}
+.goal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.sauce{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0 2px}
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:none;padding:7px 13px;font-weight:600;font-size:.86rem}
+.seg button[aria-checked="true"]{background:var(--ink);color:var(--bg)}
+
+/* semaine */
+.session{padding:13px 0;border-bottom:1px solid var(--line)}
+.session-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.session-when{font-size:.8rem;color:var(--muted);font-weight:600}
+.session-what{font-weight:700}
+.prep{margin:6px 0 0;padding-left:20px;font-size:.88rem}
+.prep li{margin-bottom:4px}
+.day{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.day-name{font-weight:700}
+.day-slots{grid-column:1;display:grid;gap:6px}
+.day-slot{display:grid;grid-template-columns:44px 1fr;gap:8px;align-items:center;font-size:.88rem}
+.day-slot span{color:var(--muted);font-size:.78rem}
+.day-kcal{grid-column:2;grid-row:1 / span 2;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.day-kcal span{display:block;font-weight:400;font-size:.8rem;color:var(--muted)}
+select,input[type=text],input[type=number],textarea{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-width:100%}
+select{width:100%}
+
+/* stock */
+.item{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.item-name{font-weight:600}
+.item-days{font-size:.8rem;color:var(--muted)}
+.item-days.low{color:var(--tomato);font-weight:600}
+.qty{display:flex;align-items:center;gap:6px}
+.qty input{width:82px;text-align:right;font-variant-numeric:tabular-nums}
+.pack{border:1px solid var(--ink);background:none;border-radius:999px;padding:6px 11px;font-weight:600;white-space:nowrap;font-size:.86rem}
+.banner{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--yolk);border-radius:10px;padding:14px;margin-bottom:8px}
+.banner p{margin:0 0 10px}
+
+/* aliments */
+.food summary{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer;font-weight:600}
+.food summary span{font-weight:400;font-size:.82rem;color:var(--muted)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px 0 16px;border-bottom:1px solid var(--line)}
+.field{display:grid;gap:3px}
+.field label{font-size:.76rem;color:var(--muted)}
+.field input,.field select{width:100%}
+.sep{grid-column:1 / -1;font-size:.8rem;font-weight:700;color:var(--muted);margin-top:4px}
+
+/* courses */
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.controls select{width:auto}
+.buy{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.buy-name{font-weight:600}
+.buy-detail{font-size:.82rem;color:var(--muted)}
+.buy-price{font-weight:700;font-variant-numeric:tabular-nums;grid-row:span 2;align-self:center}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:12px;border-top:2px solid var(--ink)}
+.total b{font-size:1.8rem;font-weight:800;font-stretch:70%}
+.note{font-size:.8rem;color:var(--muted);margin-top:12px}
+textarea{width:100%;min-height:120px;font-size:.8rem;font-family:ui-monospace,monospace}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;font-size:.9rem;transition:opacity .2s,transform .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-inner">
+    <h1>Suical</h1>
+    <div class="sub" id="sub"></div>
+    <nav role="tablist">
+      <button role="tab" aria-selected="true" data-tab="plats">Plats</button>
+      <button role="tab" aria-selected="false" data-tab="semaine">Semaine</button>
+      <button role="tab" aria-selected="false" data-tab="stock">Stock</button>
+      <button role="tab" aria-selected="false" data-tab="courses">Courses</button>
+      <button role="tab" aria-selected="false" data-tab="aliments">Aliments</button>
+    </nav>
+  </div>
+</header>
+<main>
+  <section id="tab-plats"></section>
+  <section id="tab-semaine" hidden></section>
+  <section id="tab-stock" hidden></section>
+  <section id="tab-courses" hidden></section>
+  <section id="tab-aliments" hidden></section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. Référentiel nutritionnel
+   ============================================================ */
+const NUT_KEYS = ["kcal","p","g","l","fib","vc","va","ve","vk","b9","b12","ca","fe","mg","zn","k","io","se"];
+const NUT_INFO = {
+  kcal:["Énergie","kcal",null], p:["Protéines","g",null], g:["Glucides","g",null], l:["Lipides","g",null],
+  fib:["Fibres","g",30], vc:["Vitamine C","mg",110], va:["Vitamine A","µg",750], ve:["Vitamine E","mg",10.5],
+  vk:["Vitamine K1","µg",79], b9:["Folates (B9)","µg",330], b12:["Vitamine B12","µg",4], ca:["Calcium","mg",1000],
+  fe:["Fer","mg",11], mg:["Magnésium","mg",420], zn:["Zinc","mg",14], k:["Potassium","mg",3500],
+  io:["Iode","µg",150], se:["Sélénium","µg",70]
+};
+const MICRO_ORDER = ["fib","vc","va","ve","vk","b9","b12","ca","fe","mg","zn","k","io","se"];
+const CATS = [{id:"frais",name:"Frais"},{id:"viande",name:"Viande et poisson"},{id:"surgele",name:"Surgelés"},{id:"epicerie",name:"Épicerie"}];
+const nutObj = a => { const o={}; NUT_KEYS.forEach((k,i)=>o[k]=a[i]); return o; };
+
+/* Valeurs pour 100 g / 100 ml, ou par pièce / boîte. Ordre : NUT_KEYS */
+const DEFAULT_ITEMS = {
+  oeufs:           {name:"Œufs", unit:"pc", cat:"frais", pack:12, packLabel:"boîte de 12", price:3.80,
+                    nut:nutObj([72,6.3,0.4,5,0, 0,80,0.5,0.2,24, 0.45,28,0.9,6,0.65,69, 25,15])},
+  fromage_blanc:   {name:"Fromage blanc 0 %", unit:"g", cat:"frais", pack:1000, packLabel:"pot de 1 kg", price:2.10,
+                    nut:nutObj([47,7.5,4,0.2,0, 0.5,2,0,0,15, 0.4,120,0.1,10,0.4,150, 15,3])},
+  creme:           {name:"Crème 4 %", unit:"ml", cat:"frais", pack:200, packLabel:"brique de 20 cl", price:1.10,
+                    nut:nutObj([70,3,5,4,0, 0.5,35,0.1,0.3,5, 0.3,100,0.05,10,0.3,130, 10,2])},
+  lait:            {name:"Lait entier", unit:"ml", cat:"frais", pack:1000, packLabel:"bouteille de 1 L", price:1.25,
+                    nut:nutObj([65,3.2,4.8,3.6,0, 1,32,0.1,0.3,5, 0.45,120,0.05,11,0.4,150, 20,2])},
+  bananes:         {name:"Bananes", unit:"pc", cat:"frais", pack:6, packLabel:"6 bananes", price:2.00,
+                    nut:nutObj([107,1.3,24,0.4,2.6, 10,4,0.1,0.6,24, 0,6,0.3,32,0.2,430, 0,1])},
+  poulet:          {name:"Filets de poulet", unit:"g", cat:"viande", pack:2500, packLabel:"barquette de 2,5 kg", price:24.99,
+                    nut:nutObj([115,23,0,1.3,0, 0,9,0.2,0.3,4, 0.3,5,0.5,28,0.7,350, 5,20])},
+  macreuse:        {name:"Macreuse hachée", unit:"g", cat:"viande", pack:1000, packLabel:"1 kg à la boucherie", price:14.00,
+                    nut:nutObj([125,21,0,4.5,0, 0,0,0.2,1,7, 2.5,6,2.3,22,5,330, 3,18])},
+  lieu:            {name:"Lieu noir", unit:"g", cat:"viande", pack:1000, packLabel:"sachet de 1 kg", price:10.00,
+                    nut:nutObj([82,19,0,0.8,0, 0,10,0.3,0,7, 3,10,0.3,30,0.4,350, 100,35])},
+  foie:            {name:"Foie de volaille", unit:"g", cat:"viande", pack:500, packLabel:"barquette de 500 g", price:3.00,
+                    nut:nutObj([120,17,0.7,5,0, 18,3300,0.7,1,590, 17,8,9,19,2.7,230, 3,55])},
+  thon:            {name:"Thon au naturel", unit:"boîte", cat:"epicerie", pack:1, packLabel:"1 boîte de 140 g", price:1.90,
+                    nut:nutObj([120,27,0,1,0, 0,16,0.3,0,4, 2.6,12,1.2,28,0.6,250, 20,83])},
+  epinards:        {name:"Épinards en galets", unit:"g", cat:"surgele", pack:1000, packLabel:"sachet de 1 kg", price:2.30,
+                    nut:nutObj([25,3,1.5,0.4,2.5, 12,470,2,450,120, 0,130,2,75,0.5,350, 2,1])},
+  poivrons:        {name:"Poivrons en lanières", unit:"g", cat:"surgele", pack:1000, packLabel:"sachet de 1 kg", price:3.50,
+                    nut:nutObj([30,1,5,0.3,1.8, 120,120,1.5,5,30, 0,8,0.4,12,0.2,200, 0,0])},
+  brocoli:         {name:"Brocoli", unit:"g", cat:"surgele", pack:1000, packLabel:"sachet de 1 kg", price:2.80,
+                    nut:nutObj([30,3,3,0.4,3, 60,30,1.4,100,70, 0,45,0.7,18,0.4,250, 0,1])},
+  edamame:         {name:"Edamame", unit:"g", cat:"surgele", pack:500, packLabel:"sachet de 500 g", price:3.20,
+                    nut:nutObj([120,11,4,5,5, 6,8,0.7,27,310, 0,63,2.3,64,1.4,440, 0,1])},
+  fruits_rouges:   {name:"Fruits rouges", unit:"g", cat:"surgele", pack:1000, packLabel:"sachet de 1 kg", price:6.50,
+                    nut:nutObj([45,1,8,0.4,5, 60,5,1,8,25, 0,30,0.8,18,0.3,200, 0,0])},
+  pates:           {name:"Pâtes", unit:"g", cat:"epicerie", pack:1000, packLabel:"paquet de 1 kg", price:1.30,
+                    nut:nutObj([355,12.5,71,1.5,3, 0,0,0.1,0.1,18, 0,20,1.3,50,1.3,220, 2,20])},
+  avoine:          {name:"Flocons d'avoine", unit:"g", cat:"epicerie", pack:1000, packLabel:"paquet de 1 kg", price:1.80,
+                    nut:nutObj([370,13,58,7,10, 0,0,0.6,2,56, 0,54,4.5,140,3.5,400, 1,10])},
+  beurre_cacahuete:{name:"Beurre de cacahuète", unit:"g", cat:"epicerie", pack:350, packLabel:"pot de 350 g", price:3.00,
+                    nut:nutObj([600,25,13,50,6, 0,0,9,0.5,90, 0,45,1.8,170,2.8,560, 0,4])},
+  amandes:         {name:"Amandes", unit:"g", cat:"epicerie", pack:250, packLabel:"sachet de 250 g", price:3.20,
+                    nut:nutObj([600,21,7,52,11, 0,0,25,0,45, 0,260,3.7,270,3.1,730, 0,3])},
+  coulis:          {name:"Coulis de tomate", unit:"g", cat:"epicerie", pack:700, packLabel:"bocal de 700 g", price:1.30,
+                    nut:nutObj([30,1.4,5,0.3,1.5, 8,35,1.5,5,10, 0,15,0.9,18,0.2,330, 0,0])},
+  huile:           {name:"Huile d'olive vierge extra", unit:"ml", cat:"epicerie", pack:750, packLabel:"bouteille de 75 cl", price:7.50,
+                    nut:nutObj([820,0,0,91,0, 0,0,13,55,0, 0,0,0.5,0,0,0, 0,0])},
+  whey:            {name:"Whey", unit:"g", cat:"epicerie", pack:1000, packLabel:"sachet de 1 kg", price:30.00,
+                    nut:nutObj([390,78,7,6,0, 0,0,0,0,10, 1.5,450,1,70,2,500, 30,10])}
+};
+
+const DEFAULT_DISHES = [
+  {id:"poulet_brocoli", name:"Poulet et brocoli", group:"repas", sauce:true, fresh:false, ing:{pates:125, poulet:150, brocoli:150}},
+  {id:"poulet_poivrons", name:"Poulet et poivrons", group:"repas", sauce:true, fresh:false, ing:{pates:125, poulet:150, poivrons:150}},
+  {id:"bolognaise", name:"Bolognaise enrichie", group:"repas", sauce:false, fresh:false, ing:{pates:125, macreuse:150, coulis:175, epinards:75, poivrons:50, huile:5}},
+  {id:"lieu_edamame", name:"Lieu et edamame", group:"repas", sauce:true, fresh:false, ing:{pates:125, lieu:150, edamame:150}},
+  {id:"foie_epinards", name:"Foie de volaille et épinards", group:"repas", sauce:true, fresh:true, ing:{pates:125, foie:150, epinards:100, huile:5}},
+  {id:"pates_thon", name:"Pâtes thon-tomate", group:"repas", sauce:false, fresh:true, ing:{pates:125, thon:1, coulis:175, epinards:75, huile:5}},
+  {id:"petit_dej", name:"Petit-déjeuner", group:"jour", sauce:false, fresh:true, ing:{avoine:50, fromage_blanc:150, oeufs:2}},
+  {id:"bol_avoine", name:"Bol d'avoine", group:"jour", sauce:false, fresh:true, ing:{avoine:60, lait:200, beurre_cacahuete:20, bananes:1, fruits_rouges:100}},
+  {id:"collation", name:"Collation du soir", group:"jour", sauce:false, fresh:true, ing:{fromage_blanc:150, whey:15, amandes:20}}
+];
+
+const DAYS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
+const DEFAULT_PLAN = [
+  ["poulet_brocoli","bolognaise"],
+  ["poulet_brocoli","bolognaise"],
+  ["poulet_brocoli","foie_epinards"],
+  ["poulet_poivrons","lieu_edamame"],
+  ["poulet_poivrons","lieu_edamame"]
+];
+const SESSIONS = [
+  {id:"s1", when:"Dimanche soir, au retour", days:[0,1,2]},
+  {id:"s2", when:"Mercredi soir", days:[3,4]}
+];
+const MAINT = 2725;
+const SAUCE_QTY = 60;
+const LEVERS = [
+  {id:"pates", label:"Pâtes par repas", item:"pates", scope:"repas", base:125, min:85, max:175},
+  {id:"avoine_bol", label:"Avoine du bol", item:"avoine", scope:"bol_avoine", base:60, min:45, max:100},
+  {id:"pb", label:"Beurre de cacahuète du bol", item:"beurre_cacahuete", scope:"bol_avoine", base:20, min:10, max:40},
+  {id:"amandes", label:"Amandes", item:"amandes", scope:"collation", base:20, min:10, max:40}
+];
+const ORDER_DOWN = [["pates",100],["avoine_bol",45],["pates",85],["pb",10],["amandes",10]];
+const ORDER_UP = [["pates",150],["amandes",40],["avoine_bol",100],["pb",40],["pates",175]];
+
+/* ============================================================
+   2. État, sauvegardé en local sur l'appareil
+   ============================================================ */
+const LS_KEY = "suical-v2";
+const DB_NAME = "suical", STORE = "state", KEY = "main";
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function freshState(){
+  const stock = {}; for (const k in DEFAULT_ITEMS) stock[k] = 0;
+  return {v:2, items:clone(DEFAULT_ITEMS), dishes:clone(DEFAULT_DISHES), plan:clone(DEFAULT_PLAN),
+          stock, ready:{}, log:[], target:null, sauce:"creme"};
+}
+let state = freshState();
+
+/* IndexedDB : un seul enregistrement, plus robuste que localStorage sur mobile */
+function openDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbGet(){
+  return openDB().then(db => new Promise((resolve, reject)=>{
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).get(KEY);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  }));
+}
+function idbSet(value){
+  return openDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(value, KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+function lsBackup(){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){ /* quota, on ignore */ }
+}
+
+async function load(){
+  try {
+    const stored = await idbGet();
+    if (stored) { state = migrate(stored); return; }
+  } catch(e){ /* IndexedDB indisponible : on retombe sur localStorage */ }
+  try {
+    const raw = localStorage.getItem(LS_KEY) || localStorage.getItem("suical-v1");
+    if (raw) { state = migrate(JSON.parse(raw)); await saveNow(); }
+  } catch(e){ /* premier lancement */ }
+}
+function migrate(d){
+  const s = freshState();
+  if (d && d.items) s.items = d.items;
+  if (d && Array.isArray(d.dishes) && d.dishes.length) s.dishes = d.dishes;
+  if (d && Array.isArray(d.plan) && d.plan.length===5) s.plan = d.plan;
+  if (d && d.stock) { for (const k in s.items) s.stock[k] = Number(d.stock[k])>0 ? Number(d.stock[k]) : 0; }
+  if (d && d.ready) s.ready = d.ready;
+  if (d && Array.isArray(d.log)) s.log = d.log.slice(0,60);
+  if (d && typeof d.target==="number") s.target = d.target;
+  if (d && d.sauce==="fb") s.sauce = "fb";
+  return s;
+}
+async function saveNow(){
+  const snapshot = clone(state);
+  try { await idbSet(snapshot); lsBackup(); }
+  catch(e){ lsBackup(); toast("Sauvegarde en mémoire de secours"); }
+}
+let saveTimer = null;
+function save(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 250); }
+window.addEventListener("pagehide", ()=>{ clearTimeout(saveTimer); lsBackup(); });
+
+const items = () => state.items;
+const dishes = () => state.dishes;
+const dishById = id => state.dishes.find(d=>d.id===id) || null;
+
+/* ============================================================
+   3. Calculs
+   ============================================================ */
+let LV = {}; LEVERS.forEach(l=>LV[l.id]=l.base);
+let GOAL = {target:null, base:0, reached:0, clamped:false};
+
+function effIng(d){
+  const ing = Object.assign({}, d.ing);
+  for (const l of LEVERS) {
+    if (!items()[l.item]) continue;
+    const hit = l.scope==="repas" ? (d.group==="repas" && d.ing[l.item]!==undefined) : l.scope===d.id;
+    if (hit) ing[l.item] = LV[l.id];
+  }
+  if (d.sauce) { const it = state.sauce==="fb" ? "fromage_blanc" : "creme";
+    if (items()[it]) ing[it] = (ing[it]||0) + SAUCE_QTY; }
+  return ing;
+}
+function nutOf(ing){
+  const t = {}; NUT_KEYS.forEach(k=>t[k]=0);
+  for (const [id,q] of Object.entries(ing)) {
+    const it = items()[id]; if (!it) continue;
+    const f = (it.unit==="g"||it.unit==="ml") ? q/100 : q;
+    NUT_KEYS.forEach(k=>{ t[k] += (Number(it.nut[k])||0)*f; });
+  }
+  return t;
+}
+/* nombre de fois qu'un plat revient dans la semaine */
+function weeklyCount(id){
+  const d = dishById(id); if (!d) return 0;
+  if (d.group==="jour") return state.plan.length;
+  return state.plan.flat().filter(x=>x===id).length;
+}
+function dayIng(i){
+  const ing = {};
+  const ids = [...state.plan[i], ...dishes().filter(d=>d.group==="jour").map(d=>d.id)];
+  for (const id of ids) { const d = dishById(id); if (!d) continue;
+    for (const [k,q] of Object.entries(effIng(d))) ing[k]=(ing[k]||0)+q; }
+  return ing;
+}
+function weekAvgIng(){
+  const tot = {}; const n = state.plan.length;
+  for (let i=0;i<n;i++) for (const [k,q] of Object.entries(dayIng(i))) tot[k]=(tot[k]||0)+q/n;
+  return tot;
+}
+const DAILY = {};
+function recomputeDaily(){
+  for (const k in DAILY) delete DAILY[k];
+  for (const d of dishes()) { const n = weeklyCount(d.id); if (!n) continue;
+    for (const [k,q] of Object.entries(effIng(d))) DAILY[k] = (DAILY[k]||0) + q*n/7; }
+}
+function leverKpg(l){
+  const it = items()[l.item]; if (!it) return 0;
+  const days = state.plan.length;
+  let freq = 0;
+  for (const d of dishes()) {
+    const hit = l.scope==="repas" ? (d.group==="repas" && d.ing[l.item]!==undefined) : l.scope===d.id;
+    if (hit) freq += weeklyCount(d.id)/days;
+  }
+  return freq * (Number(it.nut.kcal)||0)/100;
+}
+function applyGoal(){
+  LEVERS.forEach(l=>LV[l.id]=l.base);
+  const base = nutOf(weekAvgIng()).kcal;
+  let clamped = false;
+  if (state.target) {
+    let delta = state.target - base;
+    const order = delta<0 ? ORDER_DOWN : ORDER_UP;
+    for (const [id,bound] of order) {
+      if (Math.abs(delta)<1) break;
+      const l = LEVERS.find(x=>x.id===id); const kpg = leverKpg(l);
+      if (!kpg) continue;
+      const room = Math.max(0, delta<0 ? (LV[id]-bound) : (bound-LV[id]));
+      const grams = Math.min(room, Math.abs(delta)/kpg);
+      LV[id] += Math.sign(delta)*grams;
+      delta -= Math.sign(delta)*grams*kpg;
+    }
+    LEVERS.forEach(l=>LV[l.id]=Math.round(LV[l.id]/5)*5);
+    clamped = Math.abs(delta) > 25;
+  }
+  GOAL = {target:state.target, base, reached:nutOf(weekAvgIng()).kcal, clamped};
+  recomputeDaily();
+}
+function possible(d){
+  let n = Infinity, limit = null;
+  const ing = effIng(d);
+  if (!Object.keys(ing).length) return {n:0, limit:null};
+  for (const [k,q] of Object.entries(ing)) {
+    const c = q>0 ? Math.floor((state.stock[k]||0)/q) : Infinity;
+    if (c < n) { n = c; limit = k; }
+  }
+  return {n:n===Infinity?0:n, limit};
+}
+const daysLeft = k => DAILY[k] ? (state.stock[k]||0)/DAILY[k] : Infinity;
+
+/* ============================================================
+   4. Formatage et helpers DOM
+   ============================================================ */
+const nf = (v,d=0) => (Number(v)||0).toLocaleString("fr-FR",{maximumFractionDigits:d});
+const eur = v => (Number(v)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"});
+function unitLabel(u){ return u==="pc" ? "pièces" : u==="boîte" ? "boîtes" : u; }
+function fmtQty(id, v){
+  const it = items()[id]; if (!it) return nf(v);
+  if (it.unit==="g") return v>=1000 ? nf(v/1000,2)+" kg" : nf(v)+" g";
+  if (it.unit==="ml") return v>=1000 ? nf(v/1000,2)+" L" : nf(v)+" ml";
+  if (it.unit==="pc") return nf(v)+(v>1?" pièces":" pièce");
+  return nf(v)+" "+it.unit+(v>1?"s":"");
+}
+function el(tag, attrs={}, ...kids){
+  const n = document.createElement(tag);
+  for (const [a,v] of Object.entries(attrs)) {
+    if (a==="class") n.className = v;
+    else if (a.startsWith("on")) n.addEventListener(a.slice(2), v);
+    else if (v!==false && v!=null) n.setAttribute(a, v===true?"":v);
+  }
+  for (const k of kids) if (k!=null) n.append(k);
+  return n;
+}
+function field(label, input){ return el("div",{class:"field"}, el("label",{}, label), input); }
+function numInput(value, onChange, opts={}){
+  const i = el("input",{type:"number", inputmode:"decimal", step:opts.step||"any", min:opts.min||"0", value:String(value)});
+  i.addEventListener("change", e=>onChange(Number(String(e.target.value).replace(",","."))||0));
+  return i;
+}
+let toastT;
+function toast(msg){
+  const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2400);
+}
+const slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || "x";
+function newId(prefix, exists){ let base = slug(prefix), id = base, i = 2; while (exists(id)) id = base+"_"+(i++); return id; }
+
+/* ============================================================
+   5. Actions
+   ============================================================ */
+function eat(d){
+  const r = state.ready[d.id]||0;
+  if (r>0) {
+    state.ready[d.id] = r-1; if (!state.ready[d.id]) delete state.ready[d.id];
+    state.log.unshift({dish:d.id, t:Date.now(), ready:true});
+  } else {
+    if (possible(d).n < 1) return;
+    const used = effIng(d);
+    for (const [k,q] of Object.entries(used)) state.stock[k] = Math.max(0,(state.stock[k]||0)-q);
+    state.log.unshift({dish:d.id, t:Date.now(), ing:used});
+  }
+  state.log = state.log.slice(0,60);
+  save(); render(); toast(d.name+" : c'est noté");
+}
+function undo(i){
+  const e = state.log[i]; const d = dishById(e.dish);
+  if (d && e.ready) state.ready[d.id] = (state.ready[d.id]||0)+1;
+  else if (d) for (const [k,q] of Object.entries(e.ing||effIng(d))) state.stock[k] = (state.stock[k]||0)+q;
+  state.log.splice(i,1);
+  save(); render(); toast("Repas annulé");
+}
+function sessionBatch(s){
+  const batch = {};
+  for (const i of s.days) for (const id of state.plan[i]) {
+    const d = dishById(id); if (!d || d.fresh) continue;
+    batch[id] = (batch[id]||0)+1;
+  }
+  const need = {};
+  for (const [id,n] of Object.entries(batch)) for (const [k,q] of Object.entries(effIng(dishById(id)))) need[k]=(need[k]||0)+q*n;
+  const missing = Object.entries(need).filter(([k,q])=>(state.stock[k]||0)<q).map(([k,q])=>({k, lack:q-(state.stock[k]||0)}));
+  const fresh = [];
+  for (const i of s.days) for (const id of state.plan[i]) { const d = dishById(id); if (d && d.fresh && d.group==="repas") fresh.push({d, day:i}); }
+  return {batch, need, missing, fresh};
+}
+function cook(s){
+  const {batch, need, missing} = sessionBatch(s);
+  if (missing.length || !Object.keys(batch).length) return;
+  for (const [k,q] of Object.entries(need)) state.stock[k] = Math.max(0,(state.stock[k]||0)-q);
+  for (const [id,n] of Object.entries(batch)) state.ready[id] = (state.ready[id]||0)+n;
+  save(); render(); toast("Portions ajoutées au frigo");
+}
+function addPack(k){ state.stock[k] = (state.stock[k]||0) + (items()[k].pack||0); save(); render(); }
+function setQty(k, v){ state.stock[k] = v>0 ? v : 0; save(); render(); }
+let target = 7;
+function buyList(){
+  const rows = [];
+  for (const k in items()) {
+    const need = (DAILY[k]||0)*target - (state.stock[k]||0);
+    if (need <= 0) continue;
+    const pack = items()[k].pack || 1;
+    const packs = Math.ceil(need/pack);
+    rows.push({k, packs, cost:packs*(items()[k].price||0)});
+  }
+  return rows;
+}
+
+/* ============================================================
+   6. Blocs de rendu partagés
+   ============================================================ */
+function macroLine(t){
+  return el("div",{class:"macros"},
+    ...[["kcal","kcal"],["p","prot."],["g","gluc."],["l","lip."]].map(([k,lab])=>
+      el("div",{}, el("b",{}, nf(t[k])+(k==="kcal"?"":" g")), el("span",{}, lab))));
+}
+function nutPanel(t, label, withMacros=true){
+  const grid = el("div",{class:"micro"});
+  for (const k of MICRO_ORDER) {
+    const [name,unit,ref] = NUT_INFO[k];
+    const pct = ref ? Math.round(t[k]/ref*100) : 0;
+    grid.append(el("div",{class:"micro-row"},
+      el("span",{}, name),
+      el("span",{class:"micro-val"}, nf(t[k], t[k]<10?1:0)+" "+unit),
+      el("span",{class:"micro-bar","aria-hidden":"true"}, el("i",{style:"width:"+Math.min(pct,100)+"%"})),
+      el("span",{class:"micro-pct"}, pct+" %")));
+  }
+  return el("details",{class:"nut"}, el("summary",{}, label),
+    withMacros ? macroLine(t) : null, grid,
+    el("p",{class:"micro-note"},"Pourcentages des références ANSES pour un homme adulte. Poids crus."));
+}
+
+/* ============================================================
+   7. Onglet Plats
+   ============================================================ */
+function renderPlats(){
+  const root = document.getElementById("tab-plats"); root.replaceChildren();
+  for (const [g,title] of [["repas","Repas"],["jour","Tous les jours"]]) {
+    root.append(el("h2",{},title));
+    const list = dishes().filter(d=>d.group===g);
+    if (!list.length) root.append(el("p",{class:"empty"},"Aucun plat dans cette catégorie."));
+    for (const d of list) root.append(dishRow(d));
+  }
+  root.append(el("h2",{},"Créer un plat"));
+  root.append(el("button",{class:"primary", onclick:()=>{
+    const id = newId("plat", x=>dishById(x));
+    state.dishes.push({id, name:"Nouveau plat", group:"repas", sauce:false, fresh:false, ing:{}});
+    state.editDish = id; save(); applyGoal(); render();
+  }},"Nouveau plat"));
+
+  const today = new Date().toDateString();
+  const todays = state.log.filter(e=>new Date(e.t).toDateString()===today);
+  root.append(el("h2",{},"Aujourd'hui"));
+  if (!todays.length) root.append(el("p",{class:"empty"},"Aucun repas enregistré aujourd'hui."));
+  else {
+    const ing = {};
+    for (const e of todays) { const d = dishById(e.dish); if (d) for (const [k,q] of Object.entries(e.ing||effIng(d))) ing[k]=(ing[k]||0)+q; }
+    const t = nutOf(ing);
+    root.append(el("div",{}, macroLine(t), nutPanel(t, "Détail des micronutriments du jour", false)));
+  }
+  root.append(el("h2",{},"Derniers repas"));
+  if (!state.log.length) root.append(el("p",{class:"empty"},"Appuie sur « Mangé » après un repas."));
+  state.log.slice(0,15).forEach((e,i)=>{
+    const d = dishById(e.dish); if (!d) return;
+    const dt = new Date(e.t);
+    const when = dt.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})+" à "+dt.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    root.append(el("div",{class:"log-row"},
+      el("div",{}, d.name, el("time",{datetime:dt.toISOString()}, when)),
+      el("button",{class:"link", onclick:()=>undo(i)},"Annuler")));
+  });
+}
+
+function dishRow(d){
+  const pr = possible(d); const ready = state.ready[d.id]||0;
+  const n = pr.n + ready; const zero = n<1;
+  const ingTxt = Object.entries(effIng(d)).map(([k,q])=>fmtQty(k,q)+" "+(items()[k]?items()[k].name.toLowerCase():k)).join(", ") || "Aucun ingrédient";
+  const limitTxt = ready
+    ? ready+(ready>1?" portions prêtes":" portion prête")+" au frigo"
+    : (pr.limit ? (zero ? "Manque : "+items()[pr.limit].name.toLowerCase() : "Limité par : "+items()[pr.limit].name.toLowerCase()) : "");
+  const row = el("div",{class:"dish"},
+    el("div",{class:"count"+(zero?" zero":""), "aria-label":n+" fois possible"}, el("b",{},nf(n)), el("span",{},"fois")),
+    el("div",{class:"dish-top"},
+      el("div",{}, el("div",{class:"dish-name"}, d.name), el("div",{class:"dish-ing"}, ingTxt)),
+      el("button",{class:"eat", disabled:zero, onclick:()=>eat(d)},"Mangé")),
+    el("div",{class:"dish-limit"+(zero?" zero":"")}, limitTxt),
+    nutPanel(nutOf(effIng(d)), "Valeurs nutritionnelles"),
+    el("div",{class:"row-btns", style:"grid-column:1/-1"},
+      el("button",{class:"ghost", onclick:()=>{ state.editDish = state.editDish===d.id?null:d.id; render(); }},
+        state.editDish===d.id ? "Fermer" : "Modifier"))
+  );
+  if (state.editDish===d.id) row.append(dishEditor(d));
+  return row;
+}
+
+function dishEditor(d){
+  const box = el("div",{class:"fields", style:"grid-column:1/-1"});
+  const name = el("input",{type:"text", value:d.name});
+  name.addEventListener("change", e=>{ d.name = e.target.value.trim()||d.name; save(); render(); });
+  box.append(field("Nom", name));
+
+  const grp = el("select",{}, ...[["repas","Repas (midi ou soir)"],["jour","Tous les jours"]].map(([v,l])=>el("option",{value:v, selected:d.group===v}, l)));
+  grp.addEventListener("change", e=>{ d.group = e.target.value; save(); applyGoal(); render(); });
+  box.append(field("Catégorie", grp));
+
+  const fresh = el("select",{}, ...[["0","Se prépare en lot"],["1","Se cuisine sur le moment"]].map(([v,l])=>el("option",{value:v, selected:String(d.fresh?1:0)===v}, l)));
+  fresh.addEventListener("change", e=>{ d.fresh = e.target.value==="1"; save(); render(); });
+  box.append(field("Préparation", fresh));
+
+  const sauce = el("select",{}, ...[["0","Non"],["1","Oui, 60 g"]].map(([v,l])=>el("option",{value:v, selected:String(d.sauce?1:0)===v}, l)));
+  sauce.addEventListener("change", e=>{ d.sauce = e.target.value==="1"; save(); applyGoal(); render(); });
+  box.append(field("Crème ou fromage blanc dans les pâtes", sauce));
+
+  box.append(el("div",{class:"sep"},"Ingrédients"));
+  for (const [k,q] of Object.entries(d.ing)) {
+    const it = items()[k];
+    box.append(field((it?it.name:k)+" ("+(it?unitLabel(it.unit):"?")+")",
+      numInput(q, v=>{ if (v>0) d.ing[k]=v; else delete d.ing[k]; save(); applyGoal(); render(); })));
+  }
+  const add = el("select",{}, el("option",{value:""},"Ajouter un ingrédient…"),
+    ...Object.entries(items()).filter(([k])=>d.ing[k]===undefined).map(([k,it])=>el("option",{value:k}, it.name)));
+  add.addEventListener("change", e=>{ if (!e.target.value) return; d.ing[e.target.value]=100; save(); applyGoal(); render(); });
+  box.append(field("Ajouter", add));
+
+  box.append(el("div",{class:"row-btns", style:"grid-column:1/-1"},
+    el("button",{class:"danger", onclick:()=>{
+      if (!confirm("Supprimer « "+d.name+" » ?")) return;
+      state.dishes = state.dishes.filter(x=>x.id!==d.id);
+      state.plan = state.plan.map(day=>day.map(id=>id===d.id ? "" : id));
+      delete state.ready[d.id]; state.editDish = null;
+      save(); applyGoal(); render(); toast("Plat supprimé");
+    }},"Supprimer ce plat")));
+  return box;
+}
+
+/* ============================================================
+   8. Onglet Semaine
+   ============================================================ */
+function goalBlock(){
+  const cur = state.target || Math.round(GOAL.base/50)*50;
+  const out = el("output",{class:"goal-val"}, nf(cur)+" kcal");
+  const range = el("input",{type:"range", min:"2200", max:"3500", step:"50", value:String(cur), "aria-label":"Objectif calorique par jour"});
+  range.addEventListener("input", e=>{ out.textContent = nf(Number(e.target.value))+" kcal"; });
+  range.addEventListener("change", e=>{ state.target = Number(e.target.value); applyGoal(); save(); render(); });
+  const diff = cur - MAINT;
+  const status = Math.abs(diff)<=75 ? "Proche de ta maintenance (~2 700–2 750 kcal)."
+    : diff<0 ? "Déficit d'environ "+nf(-diff)+" kcal par jour, soit ~"+nf(-diff*7/7700,1)+" kg par semaine."
+             : "Surplus d'environ "+nf(diff)+" kcal par jour, soit ~"+nf(diff*7/7700,1)+" kg par semaine.";
+  const avg = nutOf(weekAvgIng());
+  return el("div",{class:"goal"},
+    el("div",{class:"goal-top"}, el("span",{class:"goal-label"},"Objectif calorique"), out),
+    range,
+    el("div",{class:"goal-scale","aria-hidden":"true"}, el("span",{},"Sèche"), el("span",{},"Maintien"), el("span",{},"Prise")),
+    el("p",{class:"goal-status"}, status),
+    GOAL.clamped ? el("p",{class:"goal-warn"},"Au bout des leviers : la page atteint ~"+nf(GOAL.reached)+" kcal.") : null,
+    el("div",{class:"levers"}, ...LEVERS.filter(l=>items()[l.item]).map(l=>{
+      const v = LV[l.id], dd = v-l.base;
+      return el("div",{class:"lever"}, el("span",{}, l.label), el("b",{}, nf(v)+" g"),
+        el("span",{class:"lever-d"+(dd<0?" minus":dd>0?" plus":"")}, dd===0 ? "base" : (dd>0?"+":"−")+nf(Math.abs(dd))+" g"));
+    })),
+    macroLine(avg),
+    el("div",{class:"goal-foot"},
+      el("span",{},"Recettes, stock et courses calés sur ~"+nf(avg.kcal)+" kcal par jour."),
+      state.target ? el("button",{class:"link", onclick:()=>{ state.target=null; applyGoal(); save(); render(); }},"Revenir à la base") : null));
+}
+
+function renderSemaine(){
+  const root = document.getElementById("tab-semaine"); root.replaceChildren();
+  root.append(goalBlock());
+
+  const seg = el("div",{class:"seg", role:"radiogroup","aria-label":"Sauce des plats"},
+    ...[["creme","Crème 4 %"],["fb","Fromage blanc"]].map(([v,lab])=>el("button",{role:"radio","aria-checked":String(state.sauce===v),
+      onclick:()=>{ state.sauce=v; applyGoal(); save(); render(); }}, lab)));
+  root.append(el("div",{class:"sauce"},
+    el("div",{}, el("div",{class:"goal-label"},"Plats sans sauce"), el("div",{class:"dish-ing"}, SAUCE_QTY+" g dans les pâtes")), seg));
+
+  root.append(el("h2",{},"Sessions de cuisine"));
+  for (const s of SESSIONS) {
+    const {batch, need, missing, fresh} = sessionBatch(s);
+    const what = Object.entries(batch).map(([id,n])=>(dishById(id)?dishById(id).name:id)+" ×"+n).join(" + ") || "Rien à préparer";
+    const prep = el("ol",{class:"prep"}, ...Object.entries(need).sort((a,b)=>b[1]-a[1]).map(([k,q])=>
+      el("li",{}, fmtQty(k,q)+" — "+(items()[k]?items()[k].name.toLowerCase():k))));
+    root.append(el("div",{class:"session"},
+      el("div",{class:"session-head"},
+        el("div",{}, el("div",{class:"session-when"}, s.when+" · couvre "+s.days.map(i=>DAYS[i].toLowerCase()).join(", ")),
+          el("div",{class:"session-what"}, what)),
+        el("button",{class:"eat", disabled:missing.length>0||!Object.keys(batch).length, onclick:()=>cook(s)},"Cuisiné")),
+      el("div",{class:"dish-limit"+(missing.length?" zero":"")}, missing.length
+        ? "Manque : "+missing.map(m=>(items()[m.k]?items()[m.k].name.toLowerCase():m.k)+" ("+fmtQty(m.k,m.lack)+")").join(", ")
+        : "Stock suffisant"),
+      fresh.length ? el("div",{class:"dish-ing"},"À cuisiner sur le moment : "+fresh.map(f=>f.d.name.toLowerCase()+" ("+DAYS[f.day].toLowerCase()+")").join(", ")) : null,
+      el("details",{class:"nut"}, el("summary",{},"Quantités à préparer"), prep,
+        el("p",{class:"micro-note"},"Ajoute la crème ou le fromage blanc au moment de réchauffer, pas avant."))
+    ));
+  }
+
+  root.append(el("h2",{},"Planning"));
+  const options = dishes().filter(d=>d.group==="repas");
+  state.plan.forEach((pair,i)=>{
+    const t = nutOf(dayIng(i));
+    const slots = el("div",{class:"day-slots"});
+    ["Midi","Soir"].forEach((lab,j)=>{
+      const sel = el("select",{"aria-label":DAYS[i]+" "+lab},
+        el("option",{value:"", selected:!pair[j]},"—"),
+        ...options.map(d=>el("option",{value:d.id, selected:pair[j]===d.id}, d.name)));
+      sel.addEventListener("change", e=>{ state.plan[i][j] = e.target.value; save(); applyGoal(); render(); });
+      slots.append(el("div",{class:"day-slot"}, el("span",{},lab), sel));
+    });
+    root.append(el("div",{class:"day"},
+      el("div",{class:"day-name"}, DAYS[i]), slots,
+      el("div",{class:"day-kcal"}, nf(t.kcal)+" kcal", el("span",{}, nf(t.p)+" g prot.")),
+      nutPanel(t, "Détail du jour", false)));
+  });
+
+  root.append(el("h2",{},"Moyenne par jour, du lundi au vendredi"));
+  const tw = nutOf(weekAvgIng());
+  root.append(el("div",{}, macroLine(tw), nutPanel(tw, "Détail des micronutriments", false)));
+}
+
+/* ============================================================
+   9. Onglet Stock
+   ============================================================ */
+function renderStock(){
+  const root = document.getElementById("tab-stock"); root.replaceChildren();
+  const empty = Object.values(state.stock).every(v=>!v);
+  if (empty) root.append(el("div",{class:"banner"},
+    el("p",{},"Ton stock est vide. Ajoute un format de chaque produit d'un coup, ou saisis les quantités une par une."),
+    el("button",{class:"primary", onclick:()=>{ for (const k in items()) state.stock[k]=(state.stock[k]||0)+(items()[k].pack||0); save(); render(); }},"Ajouter un format de chaque")));
+  for (const c of CATS) {
+    const list = Object.entries(items()).filter(([,it])=>it.cat===c.id);
+    if (!list.length) continue;
+    root.append(el("h2",{},c.name));
+    for (const [k,it] of list) {
+      const dl = daysLeft(k);
+      root.append(el("div",{class:"item"},
+        el("div",{},
+          el("div",{class:"item-name"}, it.name),
+          el("div",{class:"item-days"+(dl<3?" low":"")}, dl===Infinity ? "Non utilisé" : dl<1 ? "Moins d'un jour" : "~"+nf(Math.floor(dl))+" jours")),
+        el("div",{class:"qty"}, numInput(state.stock[k]||0, v=>setQty(k,v)), el("small",{}, unitLabel(it.unit))),
+        el("button",{class:"pack", onclick:()=>addPack(k), title:"Ajouter "+it.packLabel},
+          "+ "+((it.unit==="g"||it.unit==="ml") ? fmtQty(k, it.pack) : nf(it.pack)))));
+    }
+  }
+  root.append(el("h2",{},"Sauvegarde"));
+  root.append(el("p",{class:"intro"},"Tout est stocké sur cet appareil, dans IndexedDB. Exporte de temps en temps pour ne rien perdre, et pour pouvoir partager tes données."));
+  const box = el("textarea",{readonly:true, hidden:true});
+  root.append(el("div",{class:"row-btns"},
+    el("button",{class:"primary", onclick:async ()=>{
+      const json = JSON.stringify(state, null, 1);
+      box.value = json; box.hidden = false;
+      try { await navigator.clipboard.writeText(json); toast("Copié dans le presse-papier"); }
+      catch(e){ box.select(); toast("Sélectionne le texte et copie-le"); }
+    }},"Exporter"),
+    el("button",{class:"ghost", onclick:()=>{
+      const blob = new Blob([JSON.stringify(state, null, 1)], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = el("a",{href:url, download:"suical-"+new Date().toISOString().slice(0,10)+".json"});
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      toast("Fichier téléchargé");
+    }},"Télécharger"),
+    el("button",{class:"ghost", onclick:()=>{ box.hidden=false; box.readOnly=false; box.value=""; box.placeholder="Colle ici un export, puis appuie sur Importer"; box.focus(); }},"Coller un export"),
+    el("button",{class:"ghost", onclick:()=>{
+      if (!box.value.trim()) { toast("Colle d'abord un export"); return; }
+      try { const d = JSON.parse(box.value); if (!confirm("Remplacer toutes tes données par cet export ?")) return;
+        state = migrate(d); saveNow(); applyGoal(); render(); toast("Import terminé"); }
+      catch(e){ toast("Export illisible"); }
+    }},"Importer"),
+    el("button",{class:"danger", onclick:()=>{
+      if (!confirm("Tout réinitialiser ? Stock, plats et aliments repartent des valeurs de départ.")) return;
+      state = freshState(); saveNow(); applyGoal(); render(); toast("Réinitialisé");
+    }},"Réinitialiser")));
+  root.append(box);
+}
+
+/* ============================================================
+   10. Onglet Courses
+   ============================================================ */
+function renderCourses(){
+  const root = document.getElementById("tab-courses"); root.replaceChildren();
+  const sel = el("select",{"aria-label":"Durée à couvrir"},
+    ...[7,14,21,28].map(v=>el("option",{value:String(v), selected:v===target}, v===7?"1 semaine":(v/7)+" semaines")));
+  sel.addEventListener("change", e=>{ target = Number(e.target.value); renderCourses(); });
+  root.append(el("div",{class:"controls"}, el("span",{},"Couvrir"), sel));
+  const rows = buyList();
+  if (!rows.length) { root.append(el("p",{class:"empty"},"Ton stock couvre déjà cette durée.")); return; }
+  let total = 0;
+  for (const c of CATS) {
+    const rs = rows.filter(r=>items()[r.k].cat===c.id); if (!rs.length) continue;
+    root.append(el("h2",{},c.name));
+    for (const r of rs) {
+      const it = items()[r.k]; total += r.cost;
+      root.append(el("div",{class:"buy"},
+        el("div",{class:"buy-name"}, it.name),
+        el("div",{class:"buy-price"}, eur(r.cost)),
+        el("div",{class:"buy-detail"}, r.packs+" × "+it.packLabel+", en stock : "+fmtQty(r.k, state.stock[r.k]||0))));
+    }
+  }
+  root.append(el("div",{class:"total"}, el("span",{},"Total estimé"), el("b",{}, eur(total))));
+  root.append(el("button",{class:"primary", style:"margin-top:14px", onclick:()=>{
+    for (const r of buyList()) state.stock[r.k] = (state.stock[r.k]||0) + r.packs*(items()[r.k].pack||0);
+    save(); render(); toast("Courses ajoutées au stock");
+  }},"J'ai fait ces courses"));
+  root.append(el("p",{class:"note"},"Prix à ajuster dans l'onglet Aliments quand tu connais ceux de ton magasin."));
+}
+
+/* ============================================================
+   11. Onglet Aliments
+   ============================================================ */
+function renderAliments(){
+  const root = document.getElementById("tab-aliments"); root.replaceChildren();
+  root.append(el("p",{class:"intro"},"Corrige ici les valeurs avec celles de tes étiquettes : tout le reste de l'app se recalcule."));
+  for (const c of CATS) {
+    const list = Object.entries(items()).filter(([,it])=>it.cat===c.id);
+    if (!list.length) continue;
+    root.append(el("h2",{},c.name));
+    for (const [k,it] of list) root.append(foodBlock(k,it));
+  }
+  root.append(el("h2",{},"Ajouter un aliment"));
+  root.append(el("button",{class:"primary", onclick:()=>{
+    const id = newId("aliment", x=>items()[x]);
+    const nut = {}; NUT_KEYS.forEach(n=>nut[n]=0);
+    state.items[id] = {name:"Nouvel aliment", unit:"g", cat:"epicerie", pack:1000, packLabel:"1 kg", price:0, nut};
+    state.stock[id] = 0; save(); render(); toast("Aliment créé, complète ses valeurs");
+  }},"Nouvel aliment"));
+}
+
+function foodBlock(k, it){
+  const per = (it.unit==="g"||it.unit==="ml") ? "pour 100 "+it.unit : "par "+(it.unit==="pc"?"pièce":it.unit);
+  const det = el("details",{class:"food"}, el("summary",{}, it.name, el("span",{}, nf(it.nut.kcal)+" kcal "+per)));
+  const box = el("div",{class:"fields"});
+
+  const name = el("input",{type:"text", value:it.name});
+  name.addEventListener("change", e=>{ it.name = e.target.value.trim()||it.name; save(); render(); });
+  box.append(field("Nom", name));
+
+  const unit = el("select",{}, ...["g","ml","pc","boîte"].map(u=>el("option",{value:u, selected:it.unit===u}, u==="pc"?"pièce":u)));
+  unit.addEventListener("change", e=>{ it.unit = e.target.value; save(); applyGoal(); render(); });
+  box.append(field("Unité", unit));
+
+  const cat = el("select",{}, ...CATS.map(c=>el("option",{value:c.id, selected:it.cat===c.id}, c.name)));
+  cat.addEventListener("change", e=>{ it.cat = e.target.value; save(); render(); });
+  box.append(field("Rayon", cat));
+
+  box.append(field("Format acheté ("+unitLabel(it.unit)+")", numInput(it.pack, v=>{ it.pack = v; save(); render(); })));
+  const plabel = el("input",{type:"text", value:it.packLabel});
+  plabel.addEventListener("change", e=>{ it.packLabel = e.target.value; save(); render(); });
+  box.append(field("Nom du format", plabel));
+  box.append(field("Prix du format (€)", numInput(it.price, v=>{ it.price = v; save(); render(); })));
+
+  box.append(el("div",{class:"sep"},"Valeurs "+per));
+  for (const n of NUT_KEYS) {
+    const [label,unitN] = NUT_INFO[n];
+    box.append(field(label+" ("+unitN+")", numInput(it.nut[n], v=>{ it.nut[n]=v; save(); applyGoal(); render(); })));
+  }
+
+  const used = dishes().filter(d=>d.ing[k]!==undefined).map(d=>d.name);
+  box.append(el("div",{class:"row-btns", style:"grid-column:1/-1"},
+    el("button",{class:"danger", onclick:()=>{
+      if (used.length) { toast("Utilisé dans : "+used.join(", ")); return; }
+      if (!confirm("Supprimer « "+it.name+" » ?")) return;
+      delete state.items[k]; delete state.stock[k];
+      save(); applyGoal(); render(); toast("Aliment supprimé");
+    }},"Supprimer"),
+    used.length ? el("span",{class:"dish-ing", style:"align-self:center"},"Utilisé dans : "+used.join(", ")) : null));
+
+  det.append(box);
+  return det;
+}
+
+/* ============================================================
+   12. Démarrage
+   ============================================================ */
+function render(){
+  const avg = nutOf(weekAvgIng());
+  document.getElementById("sub").textContent = "Objectif "+nf(state.target||Math.round(GOAL.base/50)*50)+" kcal · plan à "+nf(avg.kcal)+" kcal · sauvegarde sur cet appareil";
+  renderPlats(); renderSemaine(); renderStock(); renderCourses(); renderAliments();
+}
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.setAttribute("aria-selected", x===b?"true":"false"));
+  for (const id of ["plats","semaine","stock","courses","aliments"]) document.getElementById("tab-"+id).hidden = id!==b.dataset.tab;
+  window.scrollTo({top:0});
+}));
+(async () => {
+  await load();
+  applyGoal();
+  render();
+  if ("serviceWorker" in navigator) {
+    try { await navigator.serviceWorker.register("./sw.js"); } catch(e){ /* hors ligne indisponible */ }
+  }
+})();
+</script>
+</body>
+</html>
