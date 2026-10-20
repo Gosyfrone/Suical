@@ -57,6 +57,7 @@ fun App(vm: MainViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var stats by rememberSaveable { mutableStateOf(false) }
+    var maint by rememberSaveable { mutableStateOf(false) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -65,8 +66,8 @@ fun App(vm: MainViewModel) {
             snack.showSnackbar(it)
         }
     }
-    BackHandler(settings || stats) { settings = false; stats = false }
-    val sub = settings || stats
+    BackHandler(settings || stats || maint) { settings = false; stats = false; maint = false }
+    val sub = settings || stats || maint
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -75,11 +76,11 @@ fun App(vm: MainViewModel) {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 navigationIcon = {
-                    if (sub) IconButton({ settings = false; stats = false }) { Icon(Icons.Default.ArrowBack, "Retour") }
+                    if (sub) IconButton({ settings = false; stats = false; maint = false }) { Icon(Icons.Default.ArrowBack, "Retour") }
                 },
                 title = {
                     Column {
-                        Text(if (settings) "Réglages" else if (stats) "Statistiques" else "Suical", fontWeight = FontWeight.ExtraBold)
+                        Text(if (settings) "Réglages" else if (stats) "Statistiques" else if (maint) "Maintien" else "Suical", fontWeight = FontWeight.ExtraBold)
                         x?.let {
                             if (!sub) Hint("Objectif ${nf((it.s.target ?: (it.c.baseKcal / 50).toInt() * 50).toDouble())} kcal · plan à ${nf(it.c.nutOf(it.c.weekAvgIng()).getValue("kcal"))} kcal")
                         }
@@ -87,6 +88,7 @@ fun App(vm: MainViewModel) {
                 },
                 actions = {
                     if (!sub) {
+                        TextButton({ maint = true }) { Text("Maintien") }
                         TextButton({ stats = true }) { Text("Stats") }
                         IconButton({ settings = true }) { Icon(Icons.Default.Settings, "Réglages") }
                     }
@@ -111,6 +113,7 @@ fun App(vm: MainViewModel) {
             if (ctx != null) when {
                 settings -> SettingsScreen(ctx, vm)
                 stats -> StatsScreen(ctx, vm)
+                maint -> MaintenanceScreen(ctx, vm)
                 tab == 0 -> DishesScreen(ctx, vm)
                 tab == 1 -> WeekScreen(ctx, vm)
                 tab == 2 -> StockScreen(ctx, vm)

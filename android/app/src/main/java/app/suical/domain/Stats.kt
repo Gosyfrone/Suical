@@ -48,6 +48,18 @@ object WeightStats {
     fun observedMaintenance(intakeKcal: Double, kgPerWeek: Double): Double = intakeKcal - kgPerWeek * 7700 / 7
 }
 
+/** Maintenance déduite de la courbe de poids et de ce qui a été mangé. */
+data class ObservedMaintenance(val kcal: Double, val kgPerWeek: Double, val intake: Double, val fromLog: Boolean)
+
+/** Null s'il n'y a pas assez de pesées dans la fenêtre. Apport = repas notés (7 jours minimum), sinon le plan. */
+fun Calc.observedMaintenance(today: Long, windowDays: Int = 28): ObservedMaintenance? {
+    val trend = WeightStats.trendKgPerWeek(s.weights, today, windowDays) ?: return null
+    val logged = periodStats(today - windowDays + 1, today)
+    val fromLog = logged.loggedDays >= 7
+    val intake = if (fromLog) logged.avgKcal else reachedKcal
+    return ObservedMaintenance(WeightStats.observedMaintenance(intake, trend), trend, intake, fromLog)
+}
+
 /** Résumé d'une période pour comparer deux fenêtres de même durée. */
 data class PeriodStats(
     val loggedDays: Int,

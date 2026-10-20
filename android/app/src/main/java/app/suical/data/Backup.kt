@@ -7,6 +7,7 @@ import app.suical.domain.Food
 import app.suical.domain.LogEntry
 import app.suical.domain.Lever
 import app.suical.domain.PlanConfig
+import app.suical.domain.Profile
 import app.suical.domain.Session
 import app.suical.domain.Weight
 import app.suical.domain.Nutrients
@@ -23,6 +24,12 @@ object Backup {
         put("sauceQty", c.sauceQty)
         put("days", c.days)
         put("start", c.startEpochDay)
+        put("profile", JSONObject().apply {
+            val p = c.profile
+            put("male", p.male); put("age", p.age); put("heightCm", p.heightCm); put("weightKg", p.weightKg)
+            put("bodyFatPct", p.bodyFatPct); put("steps", p.steps); put("sessionsPerWeek", p.sessionsPerWeek)
+            put("sessionMin", p.sessionMin); put("intensity", p.intensity)
+        })
         put("remindersOn", c.remindersOn)
         put("reminderHour", c.reminderHour)
         put("sessions", JSONArray().also { a ->
@@ -47,6 +54,17 @@ object Backup {
             sauceQty = o.optDouble("sauceQty", d.sauceQty),
             days = o.optInt("days", d.days).coerceIn(1, 28),
             startEpochDay = o.optLong("start", d.startEpochDay),
+            profile = o.optJSONObject("profile")?.let { p ->
+                val q = d.profile
+                Profile(
+                    male = p.optBoolean("male", q.male), age = p.optInt("age", q.age),
+                    heightCm = p.optDouble("heightCm", q.heightCm), weightKg = p.optDouble("weightKg", q.weightKg),
+                    bodyFatPct = p.optDouble("bodyFatPct", q.bodyFatPct), steps = p.optInt("steps", q.steps),
+                    sessionsPerWeek = p.optDouble("sessionsPerWeek", q.sessionsPerWeek),
+                    sessionMin = p.optDouble("sessionMin", q.sessionMin),
+                    intensity = p.optInt("intensity", q.intensity).coerceIn(0, 2),
+                )
+            } ?: d.profile,
             remindersOn = o.optBoolean("remindersOn", d.remindersOn),
             reminderHour = o.optInt("reminderHour", d.reminderHour).coerceIn(0, 23),
             sessions = o.optJSONArray("sessions")?.let { a ->

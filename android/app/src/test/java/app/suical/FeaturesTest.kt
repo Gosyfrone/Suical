@@ -5,7 +5,10 @@ import app.suical.data.OpenFoodFacts
 import app.suical.domain.Calc
 import app.suical.domain.Defaults
 import app.suical.domain.LogEntry
+import app.suical.domain.Metabolism
 import app.suical.domain.PlanConfig
+import app.suical.domain.Profile
+import app.suical.domain.goalKcal
 import app.suical.domain.Weight
 import app.suical.domain.WeightStats
 import app.suical.domain.dailyTotals
@@ -209,5 +212,29 @@ class FeaturesTest {
         assertTrue(back.config.remindersOn)
         assertEquals(7, back.config.reminderHour)
         assertEquals(monday, back.config.startEpochDay)
+    }
+
+    // ---- maintien théorique ----
+    @Test fun theoreticalMaintenanceUsesMifflinThenKatch() {
+        val p = Profile(male = true, age = 30, heightCm = 180.0, steps = 3000, sessionsPerWeek = 0.0)
+        val t = Metabolism.theoretical(p, 80.0)
+        assertEquals("Mifflin-St Jeor", t.formula)
+        assertEquals(1780.0, t.bmr, 0.01) // 800 + 1125 - 150 + 5
+        assertEquals(t.bmr * 1.2, t.total, 0.01) // ni pas en plus ni séance
+        assertEquals("Katch-McArdle", Metabolism.theoretical(p.copy(bodyFatPct = 15.0), 80.0).formula)
+    }
+
+    @Test fun stepsAndTrainingAddToMaintenance() {
+        val base = Profile(steps = 3000, sessionsPerWeek = 0.0)
+        val t0 = Metabolism.theoretical(base, 80.0).total
+        assertTrue(Metabolism.theoretical(base.copy(steps = 10000), 80.0).total > t0 + 200)
+        // 4 séances modérées d'1 h : (5-1) MET x 80 kg x 1 h x 4 / 7
+        assertEquals(t0 + 4 * 80.0 * 4 / 7, Metabolism.theoretical(base.copy(sessionsPerWeek = 4.0), 80.0).total, 0.01)
+    }
+
+    @Test fun goalsRoundTo50AndProfileSurvivesBackup() {
+        assertEquals(2450, goalKcal(2725.0, -300))
+        val s = fresh.copy(config = PlanConfig(profile = Profile(male = false, age = 31, steps = 12000, intensity = 2)))
+        assertEquals(s.config.profile, Backup.fromJson(Backup.toJson(s), fresh).config.profile)
     }
 }

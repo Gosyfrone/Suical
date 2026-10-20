@@ -25,6 +25,22 @@ data class Lever(
 
 fun mondayEpochDay(d: LocalDate): Long = d.minusDays((d.dayOfWeek.value - 1).toLong()).toEpochDay()
 
+/** Données personnelles pour estimer la dépense théorique (page Maintien). */
+data class Profile(
+    val male: Boolean = true,
+    val age: Int = 25,
+    val heightCm: Double = 175.0,
+    /** Poids de repli, utilisé seulement tant qu'aucune pesée n'est enregistrée. */
+    val weightKg: Double = 75.0,
+    /** % de masse grasse, 0 = inconnu (formule de Mifflin-St Jeor au lieu de Katch-McArdle). */
+    val bodyFatPct: Double = 0.0,
+    val steps: Int = 8000,
+    val sessionsPerWeek: Double = 4.0,
+    val sessionMin: Double = 60.0,
+    /** 0 = légère, 1 = modérée, 2 = intense. */
+    val intensity: Int = 1,
+)
+
 /** Réglages du plan, modifiables dans Réglages > Plan. */
 data class PlanConfig(
     /** Dépense calorique d'entretien, sert à estimer le déficit / surplus. */
@@ -35,6 +51,7 @@ data class PlanConfig(
     val days: Int = 5,
     /** Jour (epochDay) qui correspond au jour 1 du plan. Par défaut le lundi de la semaine en cours. */
     val startEpochDay: Long = mondayEpochDay(LocalDate.now()),
+    val profile: Profile = Profile(),
     val remindersOn: Boolean = false,
     val reminderHour: Int = 18,
     val sessions: List<Session> = listOf(
