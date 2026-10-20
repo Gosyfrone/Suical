@@ -1,6 +1,11 @@
 package app.suical.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -98,37 +103,27 @@ private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onTog
     val ready = x.s.ready[d.id] ?: 0
     val n = pr.n + ready
     val zero = n < 1
-    val ingTxt = x.c.effIng(d).entries.joinToString(", ") { (k, q) ->
-        val f = x.s.foods[k]
-        fmtQty(f, q) + " " + (f?.name?.lowercase() ?: k)
-    }.ifEmpty { "Aucun ingrédient" }
-    val limitTxt = when {
+    val nut = x.c.nutOf(x.c.effIng(d))
+    val status = when {
+        zero -> "Manque : " + (x.s.foods[pr.limit]?.name?.lowercase() ?: "des ingrédients")
         ready > 0 -> "$ready ${if (ready > 1) "portions prêtes" else "portion prête"} au frigo"
-        pr.limit != null -> (if (zero) "Manque : " else "Limité par : ") + (x.s.foods[pr.limit]?.name?.lowercase() ?: pr.limit)
-        else -> ""
+        else -> "Possible $n ${if (n > 1) "fois" else "fois"} avec ton stock"
     }
 
     Panel(Modifier.padding(vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                Modifier.size(70.dp).background(
-                    if (zero) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondary,
-                    RoundedCornerShape(14.dp)),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                val c = if (zero) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondary
-                Text(nf(n.toDouble()), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = c)
-                Text("fois", fontSize = 11.sp, color = c)
+        Row(Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(d.name, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                Hint("${nf(nut.getValue("kcal"))} kcal · ${nf(nut.getValue("p"))} g de protéines")
+                Hint(status, error = zero)
             }
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(d.name, fontWeight = FontWeight.Bold)
-                Hint(ingTxt)
-                if (limitTxt.isNotEmpty()) Hint(limitTxt, error = zero)
-            }
-            Button({ vm.eat(d) }, enabled = !zero, shape = RoundedCornerShape(50)) { Text("Mangé", fontWeight = FontWeight.Bold) }
+            Text(if (editing) "▴" else "▾", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp))
         }
-        NutPanel(x.c.nutOf(x.c.effIng(d)), "Valeurs nutritionnelles")
-        GhostButton(if (editing) "Fermer" else "Modifier", onClick = onToggle)
+        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AccentButton("Mangé", enabled = !zero, modifier = Modifier.weight(1f)) { vm.eat(d) }
+            GhostButton(if (editing) "Fermer" else "Modifier", onClick = onToggle)
+        }
+        NutPanel(nut, "Valeurs nutritionnelles")
         if (editing) DishEditor(x, d, vm, onDeleted)
     }
 }
@@ -136,36 +131,34 @@ private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onTog
 @Composable
 private fun DishEditor(x: Ctx, d: Dish, vm: MainViewModel, onDeleted: () -> Unit) {
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var picking by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Divider()
         TextField(d.name, "Nom", Modifier.fillMaxWidth()) { vm.saveDish(d.copy(name = it)) }
-        Choice(listOf(GROUP_MEAL to "Repas (midi ou soir)", GROUP_DAILY to "Tous les jours"), d.group, label = "Catégorie") {
-            vm.saveDish(d.copy(group = it))
-        }
-        Choice(listOf(false to "Se prépare en lot", true to "Se cuisine sur le moment"), d.fresh, label = "Préparation") {
-            vm.saveDish(d.copy(fresh = it))
-        }
+        Hint("Catégorie")
+        Segmented(listOf(GROUP_MEAL to "Midi ou soir", GROUP_DAILY to "Tous les jours"), d.group, fill = true) { vm.saveDish(d.copy(group = it)) }
+        Hint("Préparation")
+        Segmented(listOf(false to "En lot", true to "Sur le moment"), d.fresh, fill = true) { vm.saveDish(d.copy(fresh = it)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Crème ou fromage blanc dans les pâtes (60 g)", Modifier.weight(1f))
+            Text("Crème ou fromage blanc dans les pâtes (${nf(x.s.config.sauceQty)} g)", Modifier.weight(1f))
             Switch(d.sauce, { vm.saveDish(d.copy(sauce = it)) })
         }
-        Text("Ingrédients", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionTitle("Ingrédients")
+        if (d.ing.isEmpty()) Hint("Aucun ingrédient pour l'instant.")
         for ((k, q) in d.ing) {
             val f = x.s.foods[k]
             Row(verticalAlignment = Alignment.CenterVertically) {
                 NumField(q, (f?.name ?: k) + " (" + (f?.let { unitLabel(it.unit) } ?: "?") + ")", Modifier.weight(1f)) {
                     vm.saveDish(d.copy(ing = d.ing + (k to it)))
                 }
-                TextButton({ vm.saveDish(d.copy(ing = d.ing - k)) }) { Text("Retirer") }
+                IconButton({ vm.saveDish(d.copy(ing = d.ing - k)) }) { Icon(Icons.Default.Clear, "Retirer " + (f?.name ?: k)) }
             }
         }
-        val addable = x.s.foods.values.filter { it.id !in d.ing }
-        if (addable.isNotEmpty()) {
-            Choice(listOf("" to "Ajouter un ingrédient…") + addable.map { it.id to it.name }, "") {
-                if (it.isNotEmpty()) vm.saveDish(d.copy(ing = d.ing + (it to 100.0)))
-            }
-        }
-        DangerButton("Supprimer ce plat") { confirmDelete = true }
+        PrimaryButton("+ Ajouter un ingrédient", modifier = Modifier.fillMaxWidth()) { picking = true }
+        DangerButton("Supprimer ce plat", Modifier.fillMaxWidth()) { confirmDelete = true }
     }
+    if (picking) FoodPickerSheet(x.s.foods.values, exclude = d.ing.keys, title = "Ajouter à « ${d.name} »",
+        onPick = { f -> vm.saveDish(d.copy(ing = d.ing + (f.id to if (f.perHundred) 100.0 else 1.0))) }, onDismiss = { picking = false })
     if (confirmDelete) Confirm("Supprimer « ${d.name} » ?", "Il sera aussi retiré du planning.", "Supprimer",
         { confirmDelete = false }) { vm.deleteDish(d); onDeleted() }
 }

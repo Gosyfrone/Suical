@@ -18,6 +18,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -243,3 +249,49 @@ fun NutPanel(t: Nut, label: String, withMacros: Boolean = true) {
 fun Gap(h: Int = 8) = Spacer(Modifier.height(h.dp))
 
 fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = clickable(onClick = onClick)
+
+/** Minuscules sans accents, pour chercher « creme » et trouver « Crème ». */
+fun normalizeText(s: String): String =
+    java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "").trim()
+
+fun matchesQuery(name: String, query: String): Boolean {
+    val q = normalizeText(query)
+    if (q.isEmpty()) return true
+    val n = normalizeText(name)
+    return q.split(' ').filter { it.isNotEmpty() }.all { it in n }
+}
+
+/** Champ de recherche arrondi avec bouton d'effacement. */
+@Composable
+fun SearchField(value: String, onValue: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = value, onValueChange = onValue, modifier = modifier.fillMaxWidth(),
+        placeholder = { Text(placeholder) }, singleLine = true, shape = RoundedCornerShape(50),
+        leadingIcon = { Icon(Icons.Default.Search, null) },
+        trailingIcon = {
+            if (value.isNotEmpty()) IconButton({ onValue("") }) { Icon(Icons.Default.Clear, "Effacer la recherche") }
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface, unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline),
+    )
+}
+
+/** Pastilles défilantes, une seule active : filtre par rayon. */
+@Composable
+fun <T> ChipRow(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (v, l) ->
+            val on = v == selected
+            Box(
+                Modifier.heightIn(min = 44.dp)
+                    .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
+                    .clickable { onSelect(v) }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(l, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1,
+                    color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}

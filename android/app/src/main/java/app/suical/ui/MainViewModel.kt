@@ -126,9 +126,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     // ---- aliments ----
-    fun newFood(onCreated: (String) -> Unit) = act { x ->
-        val id = uniqueId("aliment", x.s.foods.keys)
-        repo.saveFood(Food(id, "Nouvel aliment", "g", "epicerie", 1000.0, "1 kg", 0.0, Nutrients.keys.associateWith { 0.0 }))
+    fun newFood(name: String = "Nouvel aliment", onCreated: (String) -> Unit) = act { x ->
+        val id = uniqueId(if (name == "Nouvel aliment") "aliment" else name, x.s.foods.keys)
+        repo.saveFood(Food(id, name, "g", "epicerie", 1000.0, "1 kg", 0.0, Nutrients.keys.associateWith { 0.0 }))
         onCreated(id)
         say("Aliment créé, complète ses valeurs")
     }

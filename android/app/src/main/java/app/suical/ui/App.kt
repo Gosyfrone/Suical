@@ -55,6 +55,7 @@ fun App(vm: MainViewModel) {
     var sub by rememberSaveable { mutableStateOf<String?>(null) }
     var suivi by rememberSaveable { mutableIntStateOf(SUIVI_STATS) }
     var courses by rememberSaveable { mutableIntStateOf(COURSES_BUY) }
+    var food by rememberSaveable { mutableStateOf<String?>(null) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -63,8 +64,10 @@ fun App(vm: MainViewModel) {
             snack.showSnackbar(it)
         }
     }
-    BackHandler(sub != null) { sub = null }
+    val back = { if (food != null) food = null else sub = null }
+    BackHandler(sub != null) { back() }
 
+    val ctx0 = x
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snack) },
@@ -72,8 +75,8 @@ fun App(vm: MainViewModel) {
             val s = sub
             if (s != null) TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = { IconButton({ sub = null }) { Icon(Icons.Default.ArrowBack, "Retour") } },
-                title = { Text(subTitle(s), fontWeight = FontWeight.ExtraBold) },
+                navigationIcon = { IconButton({ back() }) { Icon(Icons.Default.ArrowBack, "Retour") } },
+                title = { Text(if (s == SUB_ALIMENTS && food != null) ctx0?.s?.foods?.get(food)?.name ?: "Aliment" else subTitle(s), fontWeight = FontWeight.ExtraBold, maxLines = 1) },
             )
         },
         bottomBar = {
@@ -95,14 +98,14 @@ fun App(vm: MainViewModel) {
             val ctx = x
             if (ctx != null) when (sub) {
                 SUB_PLATS -> PlatsScreen(ctx, vm)
-                SUB_ALIMENTS -> FoodsScreen(ctx, vm)
+                SUB_ALIMENTS -> FoodsScreen(ctx, vm, food) { food = it }
                 SUB_REGLAGES -> SettingsScreen(ctx, vm)
                 else -> when (tab) {
                     TAB_TODAY -> TodayScreen(ctx, vm)
                     TAB_WEEK -> WeekScreen(ctx, vm) { tab = TAB_SUIVI; suivi = SUIVI_MAINT }
                     TAB_SUIVI -> SuiviScreen(ctx, vm, suivi) { suivi = it }
                     TAB_COURSES -> CoursesScreen(ctx, vm, courses) { courses = it }
-                    else -> PlusScreen(ctx) { sub = it }
+                    else -> PlusScreen(ctx) { sub = it; food = null }
                 }
             }
         }

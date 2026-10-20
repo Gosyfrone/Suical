@@ -4,7 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,20 +46,30 @@ fun SettingsScreen(x: Ctx, vm: MainViewModel) {
         if (text == null) vm.say("Lecture impossible") else vm.importJson(text) { vm.say(it ?: "Import terminé") }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
         SectionTitle("App IA")
-        Hint("Les boutons « Demander à l'IA » ouvrent cette app avec la demande déjà écrite.")
-        Choice(LLM_APPS, x.s.llmPkg.takeIf { p -> LLM_APPS.any { it.first == p } } ?: "com.anthropic.claude") { vm.setLlmPkg(it) }
+        Panel {
+            Hint("Les boutons « Demander à l'IA » ouvrent cette app avec la demande déjà écrite.", Modifier.padding(bottom = 8.dp))
+            Choice(LLM_APPS, x.s.llmPkg.takeIf { p -> LLM_APPS.any { it.first == p } } ?: "com.anthropic.claude") { vm.setLlmPkg(it) }
+        }
 
         PlanSettings(x, vm)
 
         SectionTitle("Sauvegarde")
-        Hint("Tout est stocké sur ce téléphone. Exporte de temps en temps. Le format est le même que celui du site : un export du site s'importe ici.")
-        PrimaryButton("Enregistrer dans un fichier") { save.launch("suical-${LocalDate.now()}.json") }
-        GhostButton("Copier dans le presse-papier") { LlmBridge.copy(context, vm.exportJson()); vm.say("Copié dans le presse-papier") }
-        GhostButton("Importer un fichier") { load.launch(arrayOf("*/*")) }
-        GhostButton("Importer depuis le presse-papier") { pasting = true }
-        DangerButton("Réinitialiser") { confirmReset = true }
+        Panel {
+            Hint("Tout est stocké sur ce téléphone. Exporte de temps en temps. Le format est le même que celui du site : un export du site s'importe ici.")
+            Gap(12)
+            PrimaryButton("Enregistrer dans un fichier", modifier = Modifier.fillMaxWidth()) { save.launch("suical-${LocalDate.now()}.json") }
+            Gap(8)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GhostButton("Copier", Modifier.weight(1f)) { LlmBridge.copy(context, vm.exportJson()); vm.say("Copié dans le presse-papier") }
+                GhostButton("Importer un fichier", Modifier.weight(1f)) { load.launch(arrayOf("*/*")) }
+            }
+            Gap(8)
+            GhostButton("Importer depuis le presse-papier", Modifier.fillMaxWidth()) { pasting = true }
+        }
+        Gap(16)
+        DangerButton("Réinitialiser l'app", Modifier.fillMaxWidth()) { confirmReset = true }
     }
 
     if (confirmReset) Confirm("Tout réinitialiser ?", "Stock, plats et aliments repartent des valeurs de départ.", "Réinitialiser",
