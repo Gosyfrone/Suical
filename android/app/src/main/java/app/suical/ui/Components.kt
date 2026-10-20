@@ -6,11 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -46,8 +49,25 @@ import app.suical.domain.Nutrients
 
 @Composable
 fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 20.dp, bottom = 6.dp))
+    Text(text.uppercase(), fontSize = 12.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp))
+}
+
+/** Grand titre d'un onglet, avec une ligne de contexte facultative. */
+@Composable
+fun ScreenHeader(title: String, subtitle: String? = null) {
+    Column(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
+        Text(title, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
+        if (subtitle != null) Hint(subtitle, Modifier.padding(top = 2.dp))
+    }
+}
+
+/** Bloc arrondi sur fond de surface : le contenant de base de l'app. */
+@Composable
+fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp)).padding(16.dp)) {
+        content()
+    }
 }
 
 @Composable
@@ -61,18 +81,27 @@ fun Divider() = HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
 @Composable
 fun PrimaryButton(text: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Button(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(50)) { Text(text, fontWeight = FontWeight.Bold) }
+    Button(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = RoundedCornerShape(50)) { Text(text, fontWeight = FontWeight.Bold) }
+}
+
+/** Action principale mise en avant (jaune) : « Mangé ». */
+@Composable
+fun AccentButton(text: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = RoundedCornerShape(50),
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary)) {
+        Text(text, fontWeight = FontWeight.ExtraBold)
+    }
 }
 
 @Composable
 fun GhostButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    OutlinedButton(onClick, modifier, enabled = enabled, shape = RoundedCornerShape(50),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)) { Text(text) }
+    OutlinedButton(onClick, modifier.heightIn(min = 48.dp), enabled = enabled, shape = RoundedCornerShape(50),
+        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)) { Text(text, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable
 fun DangerButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    OutlinedButton(onClick, modifier, shape = RoundedCornerShape(50),
+    OutlinedButton(onClick, modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(50),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(text) }
 }
@@ -134,16 +163,22 @@ fun <T> Choice(options: List<Pair<T, String>>, selected: T, modifier: Modifier =
 
 /** Choix exclusif en pastilles. */
 @Composable
-fun <T> Segmented(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
-    Row(Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50))) {
+fun <T> Segmented(options: List<Pair<T, String>>, selected: T, fill: Boolean = false, onSelect: (T) -> Unit) {
+    val base = if (fill) Modifier.fillMaxWidth() else Modifier
+    Row(base.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50)).padding(4.dp)) {
         options.forEach { (v, l) ->
             val on = v == selected
-            Text(l, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+            Box(
+                (if (fill) Modifier.weight(1f) else Modifier)
+                    .heightIn(min = 44.dp)
+                    .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(50))
                     .clickable { onSelect(v) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(l, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1,
+                    color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+            }
         }
     }
 }

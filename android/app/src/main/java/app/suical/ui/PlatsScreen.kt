@@ -46,12 +46,19 @@ import java.util.Locale
 private val whenFmt = DateTimeFormatter.ofPattern("EEE d MMM 'à' HH:mm", Locale.FRANCE)
 
 @Composable
-fun DishesScreen(x: Ctx, vm: MainViewModel) {
+fun PlatsScreen(x: Ctx, vm: MainViewModel) {
     val context = LocalContext.current
     var askRecipe by rememberSaveable { mutableStateOf(false) }
-    var extra by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
+        item(key = "new") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Nouveau plat", modifier = Modifier.weight(1f)) { vm.newDish { editing = it } }
+                GhostButton("Avec l'IA") { askRecipe = true }
+            }
+            Gap()
+            GhostButton("Coller la recette de l'IA", Modifier.fillMaxWidth()) { vm.pasteRecipe(context) { editing = it } }
+        }
         for ((group, title) in listOf(GROUP_MEAL to "Repas", GROUP_DAILY to "Tous les jours")) {
             val list = x.s.dishes.filter { it.group == group }
             item(key = "title-$group") { SectionTitle(title) }
@@ -62,48 +69,9 @@ fun DishesScreen(x: Ctx, vm: MainViewModel) {
                     onDeleted = { editing = null })
             }
         }
-        item(key = "new") {
-            SectionTitle("Créer un plat")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PrimaryButton("Nouveau plat") { vm.newDish { editing = it } }
-                GhostButton("Avec l'IA") { askRecipe = true }
-            }
-            Gap()
-            GhostButton("Coller la recette de l'IA") { vm.pasteRecipe(context) { editing = it } }
-        }
-
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now(zone)
-        val todays = x.s.log.filter { Instant.ofEpochMilli(it.t).atZone(zone).toLocalDate() == today }
-        item(key = "today") {
-            SectionTitle("Aujourd'hui")
-            if (todays.isEmpty()) Hint("Aucun repas enregistré aujourd'hui.")
-            else {
-                val t = Nutrients.keys.associateWith { 0.0 }.toMutableMap()
-                for (e in todays) for ((k, v) in x.c.entryNut(e)) t[k] = t.getValue(k) + v
-                MacroRow(t)
-                NutPanel(t, "Détail des micronutriments du jour", withMacros = false)
-            }
-            Gap()
-            GhostButton("Ajouter un repas hors plan") { extra = true }
-            SectionTitle("Derniers repas")
-            if (x.s.log.isEmpty()) Hint("Appuie sur « Mangé » après un repas.")
-        }
-        items(x.s.log.take(15), key = { "log-${it.id}" }) { e ->
-            val name = x.s.dish(e.dishId)?.name ?: e.name.ifEmpty { return@items }
-            val extraKcal = if (e.custom.isNotEmpty()) " · ${nf(e.custom["kcal"] ?: 0.0)} kcal" else ""
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(name)
-                    Hint(Instant.ofEpochMilli(e.t).atZone(zone).format(whenFmt) + extraKcal)
-                }
-                TextButton({ vm.undo(e) }) { Text("Annuler") }
-            }
-        }
     }
 
     if (askRecipe) RecipeAskDialog({ askRecipe = false }) { vm.sendToLlm(context, Prompts.recipe(x.s, it)) }
-    if (extra) ExtraMealDialog({ extra = false }) { n, k, p, g, l -> vm.addExtra(n, k, p, g, l) }
 }
 
 @Composable
@@ -125,32 +93,6 @@ private fun RecipeAskDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
 }
 
 @Composable
-private fun ExtraMealDialog(onDismiss: () -> Unit, onAdd: (String, Double, Double, Double, Double) -> Unit) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var kcal by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var p by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var g by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var l by rememberSaveable { mutableDoubleStateOf(0.0) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Repas hors plan") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Hint("Compté dans les statistiques du jour, sans toucher au stock.")
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nom (restaurant, snack…)") }, singleLine = true)
-                NumField(kcal, "Calories (kcal)", Modifier.fillMaxWidth()) { kcal = it }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NumField(p, "Prot. (g)", Modifier.weight(1f)) { p = it }
-                    NumField(g, "Gluc. (g)", Modifier.weight(1f)) { g = it }
-                    NumField(l, "Lip. (g)", Modifier.weight(1f)) { l = it }
-                }
-            }
-        },
-        confirmButton = { TextButton({ onAdd(name.trim(), kcal, p, g, l); onDismiss() }, enabled = kcal > 0) { Text("Ajouter") } },
-        dismissButton = { TextButton(onDismiss) { Text("Annuler") } },
-    )
-}
-@Composable
 private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onToggle: () -> Unit, onDeleted: () -> Unit) {
     val pr = x.c.possible(d)
     val ready = x.s.ready[d.id] ?: 0
@@ -166,7 +108,7 @@ private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onTog
         else -> ""
     }
 
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Panel(Modifier.padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(
                 Modifier.size(70.dp).background(
@@ -188,7 +130,6 @@ private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onTog
         NutPanel(x.c.nutOf(x.c.effIng(d)), "Valeurs nutritionnelles")
         GhostButton(if (editing) "Fermer" else "Modifier", onClick = onToggle)
         if (editing) DishEditor(x, d, vm, onDeleted)
-        Divider()
     }
 }
 

@@ -1,7 +1,9 @@
 package app.suical.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -33,6 +35,9 @@ private val Dark = darkColorScheme(
     error = Color(0xFFF06A55), errorContainer = Color(0xFF3A1F1B), onErrorContainer = Color(0xFFF06A55),
     primaryContainer = Yolk, onPrimaryContainer = Ink,
 )
+
+/** Fond du bloc d'en-tête : vert encre en clair, surface soutenue en sombre. */
+fun ColorScheme.heroBackground(): Color = if (background.luminance() < 0.5f) surfaceVariant else Ink
 
 @Composable
 fun SuicalTheme(content: @Composable () -> Unit) {

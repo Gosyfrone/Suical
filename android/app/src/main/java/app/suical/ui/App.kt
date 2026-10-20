@@ -2,17 +2,10 @@ package app.suical.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -39,25 +31,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 private class Tab(val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("Plats", Icons.Default.Home),
-    Tab("Semaine", Icons.Default.DateRange),
-    Tab("Stock", Icons.Default.List),
-    Tab("Courses", Icons.Default.ShoppingCart),
-    Tab("Aliments", Icons.Default.Create),
+    Tab("Aujourd'hui", NavIcons.Home),
+    Tab("Semaine", NavIcons.Calendar),
+    Tab("Suivi", NavIcons.Chart),
+    Tab("Courses", NavIcons.Cart),
+    Tab("Plus", NavIcons.More),
 )
+private const val TAB_TODAY = 0
+private const val TAB_WEEK = 1
+private const val TAB_SUIVI = 2
+private const val TAB_COURSES = 3
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(vm: MainViewModel) {
     val x by vm.ctx.collectAsState()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    var settings by rememberSaveable { mutableStateOf(false) }
-    var stats by rememberSaveable { mutableStateOf(false) }
-    var maint by rememberSaveable { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableIntStateOf(TAB_TODAY) }
+    var sub by rememberSaveable { mutableStateOf<String?>(null) }
+    var suivi by rememberSaveable { mutableIntStateOf(SUIVI_STATS) }
+    var courses by rememberSaveable { mutableIntStateOf(COURSES_BUY) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -66,59 +63,47 @@ fun App(vm: MainViewModel) {
             snack.showSnackbar(it)
         }
     }
-    BackHandler(settings || stats || maint) { settings = false; stats = false; maint = false }
-    val sub = settings || stats || maint
+    BackHandler(sub != null) { sub = null }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
-            TopAppBar(
+            val s = sub
+            if (s != null) TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = {
-                    if (sub) IconButton({ settings = false; stats = false; maint = false }) { Icon(Icons.Default.ArrowBack, "Retour") }
-                },
-                title = {
-                    Column {
-                        Text(if (settings) "Réglages" else if (stats) "Statistiques" else if (maint) "Maintien" else "Suical", fontWeight = FontWeight.ExtraBold)
-                        x?.let {
-                            if (!sub) Hint("Objectif ${nf((it.s.target ?: (it.c.baseKcal / 50).toInt() * 50).toDouble())} kcal · plan à ${nf(it.c.nutOf(it.c.weekAvgIng()).getValue("kcal"))} kcal")
-                        }
-                    }
-                },
-                actions = {
-                    if (!sub) {
-                        TextButton({ maint = true }) { Text("Maintien") }
-                        TextButton({ stats = true }) { Text("Stats") }
-                        IconButton({ settings = true }) { Icon(Icons.Default.Settings, "Réglages") }
-                    }
-                },
+                navigationIcon = { IconButton({ sub = null }) { Icon(Icons.Default.ArrowBack, "Retour") } },
+                title = { Text(subTitle(s), fontWeight = FontWeight.ExtraBold) },
             )
         },
         bottomBar = {
-            if (!sub) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            if (sub == null) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 TABS.forEachIndexed { i, t ->
                     NavigationBarItem(selected = tab == i, onClick = { tab = i },
                         colors = NavigationBarItemDefaults.colors(
                             indicatorColor = MaterialTheme.colorScheme.secondary,
                             selectedIconColor = MaterialTheme.colorScheme.onSecondary,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface),
-                        icon = { Icon(t.icon, null) }, label = { Text(t.label, maxLines = 1) })
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                        icon = { Icon(t.icon, null) }, label = { Text(t.label, maxLines = 1, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) })
                 }
             }
         },
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
             val ctx = x
-            if (ctx != null) when {
-                settings -> SettingsScreen(ctx, vm)
-                stats -> StatsScreen(ctx, vm)
-                maint -> MaintenanceScreen(ctx, vm)
-                tab == 0 -> DishesScreen(ctx, vm)
-                tab == 1 -> WeekScreen(ctx, vm)
-                tab == 2 -> StockScreen(ctx, vm)
-                tab == 3 -> ShoppingScreen(ctx, vm)
-                else -> FoodsScreen(ctx, vm)
+            if (ctx != null) when (sub) {
+                SUB_PLATS -> PlatsScreen(ctx, vm)
+                SUB_ALIMENTS -> FoodsScreen(ctx, vm)
+                SUB_REGLAGES -> SettingsScreen(ctx, vm)
+                else -> when (tab) {
+                    TAB_TODAY -> TodayScreen(ctx, vm)
+                    TAB_WEEK -> WeekScreen(ctx, vm) { tab = TAB_SUIVI; suivi = SUIVI_MAINT }
+                    TAB_SUIVI -> SuiviScreen(ctx, vm, suivi) { suivi = it }
+                    TAB_COURSES -> CoursesScreen(ctx, vm, courses) { courses = it }
+                    else -> PlusScreen(ctx) { sub = it }
+                }
             }
         }
     }

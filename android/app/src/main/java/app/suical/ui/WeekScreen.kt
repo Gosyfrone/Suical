@@ -11,6 +11,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.foundation.rememberScrollState
@@ -37,22 +39,21 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
-fun WeekScreen(x: Ctx, vm: MainViewModel) {
+fun WeekScreen(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
     val context = LocalContext.current
     val avg = x.c.nutOf(x.c.weekAvgIng())
     val meals = x.s.dishes.filter { it.group == GROUP_MEAL }
     var changes by remember { mutableStateOf<List<Change>?>(null) }
 
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
-        item { GoalBlock(x, vm) }
+        item { ScreenHeader("Semaine", "Plan de ${x.s.config.days} jours") }
+        item { Panel { GoalBlock(x, vm, onMaintenance) } }
 
         item {
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Plats sans sauce", fontWeight = FontWeight.Bold)
-                    Hint("${nf(x.s.config.sauceQty)} g dans les pâtes")
-                }
-                Segmented(listOf("creme" to "Crème 4 %", "fb" to "Fromage blanc"), x.s.sauce) { vm.setSauce(it) }
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text("Plats sans sauce", fontWeight = FontWeight.Bold)
+                Hint("${nf(x.s.config.sauceQty)} g dans les pâtes", Modifier.padding(bottom = 8.dp))
+                Segmented(listOf("creme" to "Crème 4 %", "fb" to "Fromage blanc"), x.s.sauce, fill = true) { vm.setSauce(it) }
             }
             Gap(8)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -67,7 +68,7 @@ fun WeekScreen(x: Ctx, vm: MainViewModel) {
         for (session in x.s.config.sessions) item(key = session.id) {
             val p = x.c.sessionPlan(session)
             val what = p.batch.entries.joinToString(" + ") { (id, n) -> (x.s.dish(id)?.name ?: id) + " ×$n" }.ifEmpty { "Rien à préparer" }
-            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Panel(Modifier.padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Hint(session.whenLabel + " · couvre " + session.days.filter { it < x.s.plan.size }.joinToString(", ") { x.s.config.dayLabel(it).lowercase() })
@@ -91,14 +92,13 @@ fun WeekScreen(x: Ctx, vm: MainViewModel) {
                         Hint("Ajoute la crème ou le fromage blanc au moment de réchauffer, pas avant.", Modifier.padding(top = 4.dp))
                     }
                 }
-                Divider()
             }
         }
 
         item { SectionTitle("Planning") }
         for (i in x.s.plan.indices) item(key = "day$i") {
             val t = x.c.nutOf(x.c.dayIng(i))
-            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Panel(Modifier.padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(x.s.config.dayLabel(i), fontWeight = FontWeight.Bold)
@@ -112,7 +112,6 @@ fun WeekScreen(x: Ctx, vm: MainViewModel) {
                     }
                 }
                 NutPanel(t, "Détail du jour", withMacros = false)
-                Divider()
             }
         }
 
@@ -161,7 +160,7 @@ private fun ChangesDialog(x: Ctx, list: List<Change>, onDismiss: () -> Unit, onA
 }
 
 @Composable
-private fun GoalBlock(x: Ctx, vm: MainViewModel) {
+private fun GoalBlock(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
     val cur = x.s.target ?: ((x.c.baseKcal / 50).roundToInt() * 50)
     var slider by remember(cur) { mutableFloatStateOf(cur.toFloat()) }
     val diff = slider.roundToInt() - x.s.config.maint
@@ -177,7 +176,12 @@ private fun GoalBlock(x: Ctx, vm: MainViewModel) {
             Text(nf(slider.toDouble()) + " kcal", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
         }
         Slider(slider, { slider = (it / 50).roundToInt() * 50f }, valueRange = 2200f..3500f, steps = 25,
-            onValueChangeFinished = { vm.setTarget(slider.roundToInt()) })
+            onValueChangeFinished = { vm.setTarget(slider.roundToInt()) },
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.secondary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Hint("Sèche"); Hint("Maintien"); Hint("Prise")
         }
@@ -203,6 +207,7 @@ private fun GoalBlock(x: Ctx, vm: MainViewModel) {
             }
         }
         MacroRow(avg)
+        GhostButton("Calculer mon maintien", Modifier.fillMaxWidth(), onClick = onMaintenance)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Hint("Recettes, stock et courses calés sur ~${nf(avg.getValue("kcal"))} kcal par jour.", Modifier.weight(1f))
             if (x.s.target != null) androidx.compose.material3.TextButton({ vm.setTarget(null) }) { Text("Revenir à la base") }

@@ -67,10 +67,8 @@ fun ShoppingScreen(x: Ctx, vm: MainViewModel) {
     val rows = x.c.buyList(days)
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                Text("Couvrir", Modifier.padding(end = 12.dp))
-                Choice(listOf(7, 14, 21, 28).map { it to if (it == 7) "1 semaine" else "${it / 7} semaines" }, days, Modifier.weight(1f)) { days = it }
-            }
+            SectionTitle("Couvrir")
+            Segmented(listOf(7, 14, 21, 28).map { it to "${it / 7} sem." }, days, fill = true) { days = it }
         }
         if (rows.isEmpty()) {
             item { Hint("Ton stock couvre déjà cette durée.") }

@@ -3,6 +3,7 @@ package app.suical.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -59,10 +60,10 @@ private fun signed(v: Double, d: Int = 0): String {
 }
 
 /** Durées proposées en jours ; 0 = tout l'historique. */
-private val RANGES = listOf(7 to "7 j", 14 to "14 j", 30 to "30 j", 90 to "3 mois", 180 to "6 mois", 0 to "Tout")
+private val RANGES = listOf(7 to "7 j", 14 to "14 j", 30 to "30 j", 90 to "3 mois", 0 to "Tout")
 
 @Composable
-fun StatsScreen(x: Ctx, vm: MainViewModel) {
+fun StatsScreen(x: Ctx) {
     var range by rememberSaveable { mutableIntStateOf(14) }
     var offset by rememberSaveable { mutableIntStateOf(0) } // nombre de périodes en arrière
     val today = todayEpochDay()
@@ -84,9 +85,7 @@ fun StatsScreen(x: Ctx, vm: MainViewModel) {
 
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
         item {
-            Row(Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState())) {
-                Segmented(RANGES, range) { range = it; offset = 0 }
-            }
+            Box(Modifier.padding(top = 8.dp)) { Segmented(RANGES, range, fill = true) { range = it; offset = 0 } }
 
             // Navigation dans le temps
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -100,7 +99,7 @@ fun StatsScreen(x: Ctx, vm: MainViewModel) {
 
             SectionTitle("Calories et poids")
             if (totals.isEmpty() && weights.isEmpty()) {
-                Hint("Rien de noté sur cette période. Appuie sur « Mangé » dans l'onglet Plats, ou enregistre ton poids plus bas.")
+                Hint("Rien de noté sur cette période. Appuie sur « Mangé » dans l'onglet Aujourd'hui, ou enregistre ton poids dans Suivi > Poids.")
             } else {
                 CombinedChart(start, end, totals.mapValues { it.value.getValue("kcal") }, target, weights)
             }
@@ -114,7 +113,6 @@ fun StatsScreen(x: Ctx, vm: MainViewModel) {
                 NutPanel(avg, "Micronutriments (moyenne des jours notés)", withMacros = false)
             }
 
-            WeightSection(x, vm, start, end, span, weights)
         }
     }
 }
@@ -152,7 +150,7 @@ private fun PeriodColumn(title: String, s: PeriodStats, modifier: Modifier) {
 }
 
 @Composable
-private fun WeightSection(x: Ctx, vm: MainViewModel, start: Long, end: Long, span: Int, inRange: List<Weight>) {
+fun WeightSection(x: Ctx, vm: MainViewModel, start: Long, end: Long, span: Int, inRange: List<Weight>) {
     val weights = x.s.weights
     var input by rememberSaveable { mutableDoubleStateOf(weights.lastOrNull()?.kg ?: 0.0) }
 

@@ -50,11 +50,13 @@ fun MaintenanceScreen(x: Ctx, vm: MainViewModel) {
         item {
             SectionTitle("Ton maintien")
             Hint("Deux estimations : une théorique (tes données ci-dessous) et une observée (ton poids et ce que tu manges). Les deux ensemble sont plus fiables qu'une seule.")
-            Estimate("Théorique", theoR, "Calculée avec ton métabolisme, tes pas et tes séances.")
+            Panel(Modifier.padding(top = 10.dp)) { Estimate("Théorique", theoR, "Calculée avec ton métabolisme, tes pas et tes séances.") }
             if (obs != null && obsR != null) {
-                Estimate("Observée", obsR,
-                    "Sur 28 jours : ${nf(obs.kgPerWeek, 2)} kg par semaine avec ${nf(obs.intake)} kcal par jour " +
-                        (if (obs.fromLog) "(repas notés)." else "(plan suivi)."))
+                Panel(Modifier.padding(top = 10.dp)) {
+                    Estimate("Observée", obsR,
+                        "Sur 28 jours : ${nf(obs.kgPerWeek, 2)} kg par semaine avec ${nf(obs.intake)} kcal par jour " +
+                            (if (obs.fromLog) "(repas notés)." else "(plan suivi)."))
+                }
             } else {
                 Hint("Observée : il faut au moins 3 pesées sur 7 jours, dans les 28 derniers jours (voir Stats).", Modifier.padding(top = 8.dp))
             }
@@ -69,19 +71,23 @@ fun MaintenanceScreen(x: Ctx, vm: MainViewModel) {
             if (obsR != null) Hint("Moyenne des deux : ${nf(mixed.toDouble())} kcal.")
 
             SectionTitle("Sèche, maintien, prise")
-            for ((delta, name) in GOALS) {
-                val kcal = goalKcal(cfg.maint.toDouble(), delta)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(name, fontWeight = FontWeight.SemiBold)
-                        Hint(if (delta == 0) "Poids stable"
-                        else "${if (delta > 0) "+" else "−"}${nf(abs(delta).toDouble())} kcal, ~${nf(abs(delta) * 7 / 7700.0, 2)} kg par semaine")
+            Panel {
+                GOALS.forEachIndexed { i, (delta, name) ->
+                    val kcal = goalKcal(cfg.maint.toDouble(), delta)
+                    val active = (x.s.target ?: (x.c.baseKcal / 50).roundToInt() * 50) == kcal
+                    if (i > 0) Divider()
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(name, fontWeight = FontWeight.Bold)
+                            Hint(if (delta == 0) "Poids stable"
+                            else "${if (delta > 0) "+" else "−"}${nf(abs(delta).toDouble())} kcal · ~${nf(abs(delta) * 7 / 7700.0, 2)} kg/sem.")
+                        }
+                        Text(nf(kcal.toDouble()), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, modifier = Modifier.padding(end = 10.dp))
+                        if (active) AccentButton("Actif", enabled = false) { } else GhostButton("Choisir") { vm.setTarget(kcal) }
                     }
-                    Text(nf(kcal.toDouble()) + " kcal", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                    GhostButton("Objectif", enabled = x.s.target != kcal) { vm.setTarget(kcal) }
                 }
             }
-            Hint("« Objectif » règle l'objectif calorique du plan (onglet Semaine). Les leviers ajustent les quantités dans leurs limites.")
+            Hint("« Choisir » règle l'objectif calorique du plan (onglet Semaine). Les leviers ajustent les quantités dans leurs limites.")
 
             SectionTitle("Tes données")
             Segmented(listOf(true to "Homme", false to "Femme"), p.male) { save(p.copy(male = it)) }
@@ -114,7 +120,7 @@ fun MaintenanceScreen(x: Ctx, vm: MainViewModel) {
 
 @Composable
 private fun Estimate(title: String, kcal: Int, detail: String) {
-    Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+    Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(title, Modifier.weight(1f), fontWeight = FontWeight.Bold)
             Text(nf(kcal.toDouble()) + " kcal", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
