@@ -19,12 +19,15 @@ import app.suical.domain.LogEntry
 import app.suical.domain.Nutrients
 import app.suical.domain.PlanConfig
 import app.suical.domain.Session
+import app.suical.domain.todayEpochDay
+import app.suical.health.HealthSteps
 import app.suical.llm.Change
 import app.suical.llm.LlmBridge
 import app.suical.llm.LlmImport
 import app.suical.reminders.Reminders
 import app.suical.widget.SuicalWidget
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +51,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val ctx: StateFlow<Ctx?> = repo.state()
         .map { Ctx(it, Calc.of(it)) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _stepsConnected = MutableStateFlow(false)
+    /** Health Connect autorisé à donner les pas. */
+    val stepsConnected: StateFlow<Boolean> = _stepsConnected
+    private var lastStepsSync = 0L
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages
@@ -203,6 +211,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun setLlmPkg(p: String) { viewModelScope.launch { repo.setLlmPkg(p.trim()) } }
     fun saveConfig(c: PlanConfig) { viewModelScope.launch { repo.setConfig(c) } }
+
+    // ---- pas ----
+    /** Recopie les pas des 30 derniers jours depuis Health Connect (au plus toutes les 2 minutes, sauf `force`). */
+    fun syncSteps(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastStepsSync < 120_000) return
+        lastStepsSync = now
+        viewModelScope.launch {
+            try {
+                val ok = HealthSteps.granted(app)
+                _stepsConnected.value = ok
+                if (!ok) { if (force) say("Accès aux pas refusé"); return@launch }
+                val today = todayEpochDay()
+                val steps = HealthSteps.daily(app, today - 29, today)
+                repo.setSteps(steps)
+                if (force) say(if (steps.isEmpty()) "Aucun pas trouvé dans Health Connect" else "Pas synchronisés")
+            } catch (e: Exception) {
+                if (force) say("Health Connect : " + (e.message ?: "erreur"))
+            }
+        }
+    }
 
     // ---- poids ----
     fun setWeight(epochDay: Long, kg: Double) { viewModelScope.launch { repo.setWeight(epochDay, kg); say("Poids enregistré") } }

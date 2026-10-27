@@ -43,7 +43,7 @@ fun PlusScreen(x: Ctx, onOpen: (String) -> Unit) {
             }
             SectionTitle("Application")
             Panel {
-                MenuRow("Réglages", "Plan, rappels, sessions de cuisine, leviers, sauvegarde") { onOpen(SUB_REGLAGES) }
+                MenuRow("Réglages", "Pas, plan, rappels, sessions de cuisine, leviers, sauvegarde") { onOpen(SUB_REGLAGES) }
             }
             Hint("Tout est stocké sur ce téléphone.", Modifier.padding(top = 16.dp, start = 4.dp))
         }

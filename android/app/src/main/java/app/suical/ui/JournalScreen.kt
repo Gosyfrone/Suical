@@ -70,6 +70,7 @@ import app.suical.domain.GROUP_DAILY
 import app.suical.domain.LogEntry
 import app.suical.domain.Nutrients
 import app.suical.domain.SLOTS
+import app.suical.domain.dayTarget
 import app.suical.domain.entryNut
 import app.suical.domain.planSlotToMeal
 import app.suical.domain.todayEpochDay
@@ -201,7 +202,7 @@ private fun DayPage(x: Ctx, vm: MainViewModel, day: Long) {
     val eaten = Nutrients.keys.associateWith { 0.0 }.toMutableMap()
     for (e in entries) for ((k, v) in x.c.entryNut(e)) eaten[k] = eaten.getValue(k) + v
     val goal = x.c.nutOf(x.c.weekAvgIng())
-    val target = (x.s.target ?: (x.c.baseKcal / 50).roundToInt() * 50).toDouble()
+    val target = x.c.dayTarget(day).total
 
     // Repas prévus : ceux du plan (midi, soir) et les plats « tous les jours », tant qu'ils ne sont pas notés.
     val planned = buildList {
@@ -221,6 +222,7 @@ private fun DayPage(x: Ctx, vm: MainViewModel, day: Long) {
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Hero(eaten, goal, target) }
+        item { StepsPanel(x, vm, day) }
         item { WeightPanel(x, vm, day) }
         items(SLOTS, key = { it.first }) { (slot, label) ->
             SlotSection(x, vm, label, entries.filter { it.slot == slot }, planned.filter { it.slot == slot }, day,

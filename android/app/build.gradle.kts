@@ -42,6 +42,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room")
     implementation("androidx.room:room-ktx:$room")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     ksp("androidx.room:room-compiler:$room")
 

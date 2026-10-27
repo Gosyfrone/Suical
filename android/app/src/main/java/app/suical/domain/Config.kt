@@ -52,6 +52,8 @@ data class PlanConfig(
     /** Jour (epochDay) qui correspond au jour 1 du plan. Par défaut le lundi de la semaine en cours. */
     val startEpochDay: Long = mondayEpochDay(LocalDate.now()),
     val profile: Profile = Profile(),
+    /** L'objectif du jour suit les pas (écart à la moyenne du profil). */
+    val stepsAdjust: Boolean = true,
     val remindersOn: Boolean = false,
     val reminderHour: Int = 18,
     val sessions: List<Session> = listOf(

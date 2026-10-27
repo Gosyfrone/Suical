@@ -75,6 +75,10 @@ data class LogE(
 @Entity(tableName = "weight")
 data class WeightE(@PrimaryKey val day: Long, val kg: Double)
 
+/** Pas d'un jour (epochDay), recopiés depuis Health Connect. */
+@Entity(tableName = "steps")
+data class StepsE(@PrimaryKey val day: Long, val count: Int)
+
 @Entity(tableName = "setting")
 data class SettingE(@PrimaryKey val k: String, val v: String)
 
@@ -93,6 +97,9 @@ interface SuicalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(e: WeightE)
     @Query("DELETE FROM weight WHERE day = :day") suspend fun deleteWeight(day: Long)
     @Query("DELETE FROM weight") suspend fun clearWeights()
+    @Query("SELECT * FROM steps ORDER BY day") fun steps(): Flow<List<StepsE>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putSteps(e: List<StepsE>)
+    @Query("DELETE FROM steps") suspend fun clearSteps()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(e: FoodE)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putNuts(e: List<FoodNutE>)
@@ -133,8 +140,8 @@ interface SuicalDao {
 
 @Database(
     entities = [FoodE::class, FoodNutE::class, DishE::class, DishIngE::class, PlanE::class,
-        StockE::class, ReadyE::class, LogE::class, SettingE::class, WeightE::class],
-    version = 3,
+        StockE::class, ReadyE::class, LogE::class, SettingE::class, WeightE::class, StepsE::class],
+    version = 4,
     exportSchema = false,
 )
 abstract class SuicalDb : RoomDatabase() {
@@ -173,12 +180,19 @@ abstract class SuicalDb : RoomDatabase() {
             }
         }
 
+        /** v4 : pas par jour (Health Connect). */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS steps (day INTEGER NOT NULL, count INTEGER NOT NULL, PRIMARY KEY(day))")
+            }
+        }
+
         @Volatile private var instance: SuicalDb? = null
 
         /** Une seule instance partagée par l'app, le widget et les rappels. */
         fun get(context: Context): SuicalDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, SuicalDb::class.java, "suical.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build().also { instance = it }
         }
     }

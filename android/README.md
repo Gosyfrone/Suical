@@ -48,7 +48,8 @@ puis « Coller la réponse » met à jour les aliments. Les prompts sont tous da
 | Ajout unifié : récents, plats (portions, ingrédients ajustés pour ce repas), aliments avec quantité, scan, saisie libre | Journal > + |
 | Modifier les ingrédients d'un repas déjà noté sans toucher au plat (le stock suit) | Journal > un repas |
 | Plat inconnu estimé par l'IA (description ou photo), relu et corrigé avant l'ajout | Journal > + > Estimer avec l'IA |
+| Pas de la montre via Health Connect (Zepp, etc.), objectif du jour ajusté selon l'écart à la moyenne | Journal, Réglages > Pas |
 | Plan de 1 à 28 jours, jour 1 réglable | Réglages > Plan |
 
-Base de données en version 3 (migrations automatiques v1 → v2 → v3 ; la v3 range les anciens repas au jour et au moment de leur saisie).
+Base de données en version 4 (migrations automatiques v1 → v4 ; la v3 range les anciens repas au jour et au moment de leur saisie, la v4 ajoute les pas).
 `Reminders.messages`, `WeightStats`, `OpenFoodFacts.parse` et `LlmImport` sont du Kotlin pur, couverts par `FeaturesTest`.

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +20,7 @@ import app.suical.domain.Profile
 import app.suical.domain.TheoreticalMaintenance
 import app.suical.domain.goalKcal
 import app.suical.domain.observedMaintenance
+import app.suical.domain.avgSteps
 import app.suical.domain.todayEpochDay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -106,6 +108,13 @@ fun MaintenanceScreen(x: Ctx, vm: MainViewModel) {
 
             SectionTitle("Activité")
             NumField(p.steps.toDouble(), "Pas par jour (moyenne)", Modifier.fillMaxWidth()) { save(p.copy(steps = it.toInt())) }
+            val today = todayEpochDay()
+            x.s.avgSteps(today - 28, today - 1)?.let { measured ->
+                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Hint("Mesuré sur 28 jours : ${nf(measured.toDouble())} pas par jour.", Modifier.weight(1f))
+                    if (abs(measured - p.steps) >= 250) TextButton({ save(p.copy(steps = measured)) }) { Text("Utiliser") }
+                }
+            }
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumField(p.sessionsPerWeek, "Séances par semaine", Modifier.weight(1f)) { save(p.copy(sessionsPerWeek = it)) }
                 NumField(p.sessionMin, "Minutes par séance", Modifier.weight(1f)) { save(p.copy(sessionMin = it)) }

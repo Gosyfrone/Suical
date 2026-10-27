@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import app.suical.domain.todayEpochDay
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 
 private class Tab(val label: String, val icon: ImageVector)
 
@@ -67,6 +69,7 @@ fun App(vm: MainViewModel) {
             snack.showSnackbar(it)
         }
     }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.syncSteps() }
     val back = { if (food != null) food = null else sub = null }
     BackHandler(sub != null) { back() }
 

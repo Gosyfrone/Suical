@@ -17,6 +17,8 @@ import app.suical.domain.WeightStats
 import app.suical.domain.dailyTotals
 import app.suical.domain.periodStats
 import app.suical.domain.recentEntries
+import app.suical.domain.dayTarget
+import app.suical.domain.avgSteps
 import app.suical.domain.entryNut
 import app.suical.llm.LlmImport
 import app.suical.reminders.Reminders
@@ -267,6 +269,26 @@ class FeaturesTest {
         val c = Calc.of(fresh)
         val poulet = c.nutOf(mapOf("poulet" to 100.0)).getValue("kcal")
         assertEquals(poulet + 300.0, c.entryNut(e).getValue("kcal"), 0.001)
+    }
+
+    // ---- pas et objectif du jour ----
+    @Test fun stepsAdjustTargetBothWaysForPastDaysOnlyUpForToday() {
+        val cfg = PlanConfig(profile = Profile(steps = 8000, weightKg = 80.0))
+        val s = fresh.copy(target = 2500, config = cfg, steps = mapOf(monday to 15000, monday + 1 to 4000, monday + 2 to 4000))
+        val c = Calc.of(s)
+        // 7 000 pas en plus × 0,0004 × 80 kg = 224 → arrondi à 220
+        assertEquals(2720.0, c.dayTarget(monday, today = monday + 2).total, 0.0)
+        assertEquals(-130.0, c.dayTarget(monday + 1, today = monday + 2).stepsKcal, 0.0) // jour passé : malus
+        assertEquals(0.0, c.dayTarget(monday + 2, today = monday + 2).stepsKcal, 0.0)    // aujourd'hui : pas de malus
+        assertEquals(2500.0, c.dayTarget(monday + 3, today = monday + 2).total, 0.0)     // pas de données
+        val off = Calc.of(s.copy(config = cfg.copy(stepsAdjust = false)))
+        assertEquals(0.0, off.dayTarget(monday, today = monday + 2).stepsKcal, 0.0)
+    }
+
+    @Test fun backupKeepsSteps() {
+        val back = Backup.fromJson(Backup.toJson(fresh.copy(steps = mapOf(monday to 9123))), fresh)
+        assertEquals(mapOf(monday to 9123), back.steps)
+        assertNull(fresh.copy(steps = mapOf(monday to 9000)).avgSteps(monday - 6, monday)) // moins de 7 jours connus
     }
 
     // ---- sauvegarde ----

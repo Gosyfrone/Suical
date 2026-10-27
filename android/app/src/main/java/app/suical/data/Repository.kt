@@ -42,16 +42,18 @@ class Repository(private val db: SuicalDb) {
     /** L'état complet, ré-émis à chaque modification de n'importe quelle table. */
     fun state(): Flow<AppState> = combine(
         listOf(dao.foods(), dao.foodNuts(), dao.dishes(), dao.dishIngs(), dao.plan(),
-            dao.stock(), dao.ready(), dao.log(), dao.settings(), dao.weights())
+            dao.stock(), dao.ready(), dao.log(), dao.settings(), dao.weights(), dao.steps())
     ) { a ->
         @Suppress("UNCHECKED_CAST")
         build(a[0] as List<FoodE>, a[1] as List<FoodNutE>, a[2] as List<DishE>, a[3] as List<DishIngE>,
-            a[4] as List<PlanE>, a[5] as List<StockE>, a[6] as List<ReadyE>, a[7] as List<LogE>, a[8] as List<SettingE>, a[9] as List<WeightE>)
+            a[4] as List<PlanE>, a[5] as List<StockE>, a[6] as List<ReadyE>, a[7] as List<LogE>, a[8] as List<SettingE>, a[9] as List<WeightE>,
+            a[10] as List<StepsE>)
     }
 
     private fun build(
         foods: List<FoodE>, nuts: List<FoodNutE>, dishes: List<DishE>, ings: List<DishIngE>, plan: List<PlanE>,
         stock: List<StockE>, ready: List<ReadyE>, log: List<LogE>, settings: List<SettingE>, weights: List<WeightE>,
+        steps: List<StepsE>,
     ): AppState {
         val nutBy = nuts.groupBy { it.foodId }
         val ingBy = ings.groupBy { it.dishId }
@@ -76,6 +78,7 @@ class Repository(private val db: SuicalDb) {
             llmPkg = set[K_LLM] ?: DEFAULT_LLM_PKG,
             config = config,
             weights = weights.map { Weight(it.day, it.kg) },
+            steps = steps.associate { it.day to it.count },
         )
     }
 
@@ -87,8 +90,9 @@ class Repository(private val db: SuicalDb) {
     /** Remplace toute la base par cet état (import, réinitialisation, premier lancement). */
     suspend fun replaceAll(s: AppState) = tx {
         dao.clearFoods(); dao.clearNuts(); dao.clearDishes(); dao.clearIngs()
-        dao.clearPlan(); dao.clearStock(); dao.clearReady(); dao.clearLog(); dao.clearWeights()
+        dao.clearPlan(); dao.clearStock(); dao.clearReady(); dao.clearLog(); dao.clearWeights(); dao.clearSteps()
         s.weights.forEach { dao.put(WeightE(it.epochDay, it.kg)) }
+        setSteps(s.steps)
         s.foods.values.forEach { saveFood(it) }
         s.dishes.forEach { saveDish(it) }
         s.plan.forEachIndexed { d, row -> row.forEachIndexed { sl, id -> dao.put(PlanE(d, sl, id)) } }
@@ -209,6 +213,9 @@ class Repository(private val db: SuicalDb) {
     // ---- poids ----
     suspend fun setWeight(epochDay: Long, kg: Double) = dao.put(WeightE(epochDay, kg))
     suspend fun deleteWeight(epochDay: Long) = dao.deleteWeight(epochDay)
+
+    // ---- pas ----
+    suspend fun setSteps(byDay: Map<Long, Int>) = dao.putSteps(byDay.map { (d, n) -> StepsE(d, n) })
 
     // ---- réglages ----
     suspend fun setTarget(t: Int?) = if (t == null) dao.deleteSetting(K_TARGET) else dao.put(SettingE(K_TARGET, t.toString()))

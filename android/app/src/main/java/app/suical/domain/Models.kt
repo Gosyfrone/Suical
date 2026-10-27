@@ -106,6 +106,8 @@ data class AppState(
     val llmPkg: String = DEFAULT_LLM_PKG,
     val config: PlanConfig = PlanConfig(),
     val weights: List<Weight> = emptyList(),
+    /** Pas par jour (epochDay -> nombre), lus dans Health Connect. */
+    val steps: Map<Long, Int> = emptyMap(),
 ) {
     fun dish(id: String) = dishes.firstOrNull { it.id == id }
     fun stockOf(id: String) = stock[id] ?: 0.0

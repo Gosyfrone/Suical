@@ -31,6 +31,7 @@ object Backup {
             put("bodyFatPct", p.bodyFatPct); put("steps", p.steps); put("sessionsPerWeek", p.sessionsPerWeek)
             put("sessionMin", p.sessionMin); put("intensity", p.intensity)
         })
+        put("stepsAdjust", c.stepsAdjust)
         put("remindersOn", c.remindersOn)
         put("reminderHour", c.reminderHour)
         put("sessions", JSONArray().also { a ->
@@ -66,6 +67,7 @@ object Backup {
                     intensity = p.optInt("intensity", q.intensity).coerceIn(0, 2),
                 )
             } ?: d.profile,
+            stepsAdjust = o.optBoolean("stepsAdjust", d.stepsAdjust),
             remindersOn = o.optBoolean("remindersOn", d.remindersOn),
             reminderHour = o.optInt("reminderHour", d.reminderHour).coerceIn(0, 23),
             sessions = o.optJSONArray("sessions")?.let { a ->
@@ -119,6 +121,7 @@ object Backup {
         o.put("sauce", s.sauce)
         o.put("config", configToJson(s.config))
         o.put("weights", JSONArray().also { a -> s.weights.forEach { a.put(JSONObject().put("day", it.epochDay).put("kg", it.kg)) } })
+        o.put("steps", JSONObject().also { st -> s.steps.forEach { (d, n) -> st.put(d.toString(), n) } })
         return o.toString(1)
     }
 
@@ -186,6 +189,9 @@ object Backup {
             sauce = if (o.optString("sauce") == "fb") "fb" else "creme",
             llmPkg = base.llmPkg.ifBlank { DEFAULT_LLM_PKG },
             config = (if (o.has("config")) configFromJson(o.optJSONObject("config")) else base.config).copy(days = plan.size),
+            steps = o.optJSONObject("steps")?.let { st ->
+                st.keys().asSequence().mapNotNull { k -> k.toLongOrNull()?.let { it to st.getInt(k) } }.toMap()
+            } ?: emptyMap(),
             weights = o.optJSONArray("weights")?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { Weight(it.getLong("day"), it.getDouble("kg")) } } } ?: emptyList(),
         )
     }

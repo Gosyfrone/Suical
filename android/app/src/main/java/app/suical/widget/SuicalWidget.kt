@@ -15,6 +15,7 @@ import app.suical.domain.AppState
 import app.suical.domain.Calc
 import app.suical.domain.Dish
 import app.suical.domain.dailyTotals
+import app.suical.domain.dayTarget
 import app.suical.domain.planSlotToMeal
 import app.suical.domain.todayEpochDay
 import app.suical.ui.nf
@@ -77,7 +78,7 @@ class SuicalWidget : AppWidgetProvider() {
             val tot = c.dailyTotals(today, today)[today]
             val kcal = tot?.getValue("kcal") ?: 0.0
             val prot = tot?.getValue("p") ?: 0.0
-            val target = s.target ?: (c.baseKcal / 50).toInt() * 50
+            val target = c.dayTarget(today).total.toInt()
 
             val v = RemoteViews(context.packageName, R.layout.widget)
             v.setTextViewText(R.id.widget_kcal, "${nf(kcal)} / ${nf(target.toDouble())} kcal")

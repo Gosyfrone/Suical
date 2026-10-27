@@ -53,6 +53,8 @@ fun SettingsScreen(x: Ctx, vm: MainViewModel) {
             Choice(LLM_APPS, x.s.llmPkg.takeIf { p -> LLM_APPS.any { it.first == p } } ?: "com.anthropic.claude") { vm.setLlmPkg(it) }
         }
 
+        StepsSettings(x, vm)
+
         PlanSettings(x, vm)
 
         SectionTitle("Sauvegarde")
