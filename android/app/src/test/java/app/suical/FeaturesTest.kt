@@ -273,12 +273,13 @@ class FeaturesTest {
 
     // ---- pas et objectif du jour ----
     @Test fun stepsAdjustTargetBothWaysForPastDaysOnlyUpForToday() {
-        val cfg = PlanConfig(profile = Profile(steps = 8000, weightKg = 80.0))
+        val cfg = PlanConfig(profile = Profile(steps = 8000, weightKg = 80.0, heightCm = 175.0, male = true))
         val s = fresh.copy(target = 2500, config = cfg, steps = mapOf(monday to 15000, monday + 1 to 4000, monday + 2 to 4000))
         val c = Calc.of(s)
-        // 7 000 pas en plus × 0,0004 × 80 kg = 224 → arrondi à 220
-        assertEquals(2720.0, c.dayTarget(monday, today = monday + 2).total, 0.0)
-        assertEquals(-130.0, c.dayTarget(monday + 1, today = monday + 2).stepsKcal, 0.0) // jour passé : malus
+        // pas de 1,75 × 0,415 = 0,726 m ; 0,5 kcal/kg/km × 80 kg × 0,000726 km = 0,029 kcal par pas
+        assertEquals(0.02905, Metabolism.kcalPerStep(cfg.profile, 80.0), 0.00001)
+        assertEquals(2700.0, c.dayTarget(monday, today = monday + 2).total, 0.0)          // +7 000 pas = 203 → 200
+        assertEquals(-120.0, c.dayTarget(monday + 1, today = monday + 2).stepsKcal, 0.0) // jour passé : malus (−116)
         assertEquals(0.0, c.dayTarget(monday + 2, today = monday + 2).stepsKcal, 0.0)    // aujourd'hui : pas de malus
         assertEquals(2500.0, c.dayTarget(monday + 3, today = monday + 2).total, 0.0)     // pas de données
         val off = Calc.of(s.copy(config = cfg.copy(stepsAdjust = false)))
@@ -319,6 +320,12 @@ class FeaturesTest {
         assertEquals(1780.0, t.bmr, 0.01) // 800 + 1125 - 150 + 5
         assertEquals(t.bmr * 1.2, t.total, 0.01) // ni pas en plus ni séance
         assertEquals("Katch-McArdle", Metabolism.theoretical(p.copy(bodyFatPct = 15.0), 80.0).formula)
+    }
+
+    @Test fun tallerPeopleBurnMorePerStep() {
+        val p = Profile(heightCm = 175.0)
+        assertTrue(Metabolism.kcalPerStep(p.copy(heightCm = 190.0), 80.0) > Metabolism.kcalPerStep(p, 80.0))
+        assertTrue(Metabolism.kcalPerStep(p, 90.0) > Metabolism.kcalPerStep(p, 80.0))
     }
 
     @Test fun stepsAndTrainingAddToMaintenance() {

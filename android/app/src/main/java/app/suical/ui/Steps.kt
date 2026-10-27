@@ -77,8 +77,8 @@ fun StepsSettings(x: Ctx, vm: MainViewModel) {
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Ajuster l'objectif selon les pas", fontWeight = FontWeight.SemiBold)
-                Hint("Chaque 1 000 pas au-dessus de ta moyenne (${nf(cfg.profile.steps.toDouble())}, Suivi > Maintien) ajoute ~${nf(Metabolism.KCAL_PER_STEP_PER_KG * kg * 1000, 0)} kcal, " +
-                    "en dessous en retire. Le jour même, seuls les pas en plus comptent.")
+                Hint("Chaque 1 000 pas au-dessus de ta moyenne (${nf(cfg.profile.steps.toDouble())}, Suivi > Maintien) ajoute ~${nf(Metabolism.kcalPerStep(cfg.profile, kg) * 1000, 0)} kcal, " +
+                    "en dessous en retire (d'après ton poids et ta taille). Le jour même, seuls les pas en plus comptent.")
             }
             Switch(cfg.stepsAdjust, { vm.saveConfig(cfg.copy(stepsAdjust = it)) })
         }

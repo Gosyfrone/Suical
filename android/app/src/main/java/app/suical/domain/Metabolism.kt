@@ -21,7 +21,14 @@ object Metabolism {
 
     /** Pas déjà couverts par le facteur de base (déplacements dans la maison, etc.). */
     private const val BASE_STEPS = 3000
-    const val KCAL_PER_STEP_PER_KG = 0.0004
+    /** Coût net de la marche (au-dessus du repos, déjà compté dans le BMR), en kcal par kg et par km. */
+    private const val NET_KCAL_PER_KG_KM = 0.5
+
+    /** Longueur de pas estimée d'après la taille (≈ 41 % de la taille), en mètres. */
+    fun strideM(p: Profile) = p.heightCm / 100 * if (p.male) 0.415 else 0.413
+
+    /** kcal dépensées par pas : le poids fixe le coût d'un km, la taille le nombre de pas pour le faire. */
+    fun kcalPerStep(p: Profile, kg: Double) = NET_KCAL_PER_KG_KM * kg * strideM(p) / 1000
 
     /** Katch-McArdle si la masse grasse est connue, sinon Mifflin-St Jeor. */
     fun bmr(p: Profile, kg: Double): Pair<Double, String> =
@@ -33,7 +40,7 @@ object Metabolism {
 
     fun theoretical(p: Profile, kg: Double): TheoreticalMaintenance {
         val (bmr, formula) = bmr(p, kg)
-        val steps = (p.steps - BASE_STEPS).coerceAtLeast(0) * KCAL_PER_STEP_PER_KG * kg
+        val steps = (p.steps - BASE_STEPS).coerceAtLeast(0) * kcalPerStep(p, kg)
         // Dépense nette : on retire le MET de repos (1), déjà compté dans le BMR.
         val perSession = (MET[p.intensity.coerceIn(0, 2)] - 1) * kg * p.sessionMin / 60
         return TheoreticalMaintenance(bmr, bmr * 0.2, steps, perSession * p.sessionsPerWeek / 7, formula)
@@ -59,7 +66,7 @@ fun Calc.dayTarget(day: Long, today: Long = todayEpochDay()): DayTarget {
     val p = s.config.profile
     val kg = s.weights.filter { it.epochDay <= day }.maxByOrNull { it.epochDay }?.kg ?: p.weightKg
     val diff = (steps - p.steps).let { if (day == today) it.coerceAtLeast(0) else it }
-    val kcal = (diff * Metabolism.KCAL_PER_STEP_PER_KG * kg / 10).roundToInt() * 10.0
+    val kcal = (diff * Metabolism.kcalPerStep(p, kg) / 10).roundToInt() * 10.0
     return DayTarget(base, steps, kcal)
 }
 
