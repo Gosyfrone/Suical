@@ -73,6 +73,13 @@ private fun WeightScreen(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
                 }
             }
             WeightSection(x, vm, start, today, span, weights)
+            val import = rememberImportHistory(vm)
+            SectionTitle("Historique Zepp")
+            Panel {
+                Hint("Reprend une fois tes pesées et tes pas passés depuis Health Connect (jusqu'à 5 ans). " +
+                    "Les pesées déjà notées dans Suical ne sont jamais remplacées.")
+                GhostButton("Récupérer l'historique (pas et poids)", Modifier.fillMaxWidth().padding(top = 10.dp), onClick = import)
+            }
         }
     }
 }

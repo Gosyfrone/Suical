@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.suical.domain.Metabolism
 import app.suical.domain.Nutrients
 import app.suical.domain.PeriodStats
 import app.suical.domain.Weight
@@ -58,7 +59,7 @@ private fun signed(v: Double, d: Int = 0): String {
 }
 
 /** Durées proposées en jours ; 0 = tout l'historique. */
-private val RANGES = listOf(7 to "7 j", 14 to "14 j", 30 to "30 j", 90 to "3 mois", 0 to "Tout")
+private val RANGES = listOf(7 to "7 j", 14 to "14 j", 30 to "30 j", 90 to "3 m", 0 to "Tout")
 
 @Composable
 fun StatsScreen(x: Ctx) {
@@ -69,6 +70,7 @@ fun StatsScreen(x: Ctx) {
     val firstDay = minOf(
         x.s.log.minOfOrNull { it.day } ?: today,
         x.s.weights.minOfOrNull { it.epochDay } ?: today,
+        x.s.steps.keys.minOrNull() ?: today,
     )
     val all = range == 0
     val span = if (all) (today - firstDay + 1).toInt().coerceAtLeast(7) else range
@@ -97,10 +99,12 @@ fun StatsScreen(x: Ctx) {
 
             SectionTitle("Calories et poids")
             if (totals.isEmpty() && weights.isEmpty()) {
-                Hint("Rien de noté sur cette période. Appuie sur « Mangé » dans l'onglet Aujourd'hui, ou enregistre ton poids dans Suivi > Poids.")
+                Hint("Rien de noté sur cette période. Note tes repas et ton poids dans le Journal.")
             } else {
                 CombinedChart(start, end, totals.mapValues { it.value.getValue("kcal") }, target, weights)
             }
+
+            StepsSection(x, start, end)
 
             if (!all) Comparison(x, start, end, span)
 
@@ -133,6 +137,11 @@ private fun Comparison(x: Ctx, start: Long, end: Long, span: Int) {
         if (cur.avgWeight != null && prev.avgWeight != null) {
             Hint("Poids moyen : ${signed(cur.avgWeight - prev.avgWeight, 1)} kg")
         }
+        val stepsNow = x.s.steps.filterKeys { it in start..end }.values
+        val stepsBefore = x.s.steps.filterKeys { it in (start - span) until start }.values
+        if (stepsNow.isNotEmpty() && stepsBefore.isNotEmpty()) {
+            Hint("Pas : ${signed(stepsNow.average() - stepsBefore.average())} par jour")
+        }
     }
 }
 
@@ -145,6 +154,64 @@ private fun PeriodColumn(title: String, s: PeriodStats, modifier: Modifier) {
         if (s.avgWeight != null) Hint(nf(s.avgWeight, 1) + " kg en moyenne")
         if (s.weightChange != null) Hint("Variation : ${signed(s.weightChange, 1)} kg")
     }
+}
+
+/** Pas de la période : moyenne, écart à la référence du profil en kcal, et barres par jour (par semaine au-delà de 60 jours). */
+@Composable
+private fun StepsSection(x: Ctx, start: Long, end: Long) {
+    val inRange = x.s.steps.filterKeys { it in start..end }
+    SectionTitle("Pas")
+    if (inRange.isEmpty()) {
+        Hint(if (x.s.steps.isEmpty()) "Aucun pas pour l'instant : connecte Health Connect dans le Journal, puis récupère ton historique dans Suivi > Poids."
+            else "Pas de données sur cette période.")
+        return
+    }
+    val p = x.s.config.profile
+    val kg = x.s.weights.maxByOrNull { it.epochDay }?.kg ?: p.weightKg
+    // Aujourd'hui n'est pas fini : il est dessiné mais ne compte pas dans la moyenne.
+    val full = inRange.filterKeys { it < todayEpochDay() }.ifEmpty { inRange }
+    val avg = full.values.average()
+    val kcal = (avg - p.steps) * Metabolism.kcalPerStep(p, kg)
+    Text("${nf(avg)} pas par jour", fontWeight = FontWeight.ExtraBold)
+    Hint("Moyenne de ${full.size} jour(s) complet(s) · ta référence : ${nf(p.steps.toDouble())} pas, soit ${signed(kcal)} kcal par jour")
+    StepsChart(start, end, inRange, p.steps)
+}
+
+@Composable
+private fun StepsChart(start: Long, end: Long, steps: Map<Long, Int>, ref: Int) {
+    val bar = MaterialTheme.colorScheme.secondary
+    val guide = MaterialTheme.colorScheme.onSurfaceVariant
+    val span = (end - start + 1).toInt()
+    val bucket = if (span > 60) 7 else 1
+    val buckets = (0 until (span + bucket - 1) / bucket).map { b ->
+        val from = start + b.toLong() * bucket
+        val to = minOf(end, from + bucket - 1)
+        val v = (from..to).mapNotNull { steps[it] }
+        Triple(from, to, if (v.isEmpty()) null else v.average())
+    }
+    val max = (buckets.mapNotNull { it.third }.maxOrNull() ?: 0.0).coerceAtLeast(ref.toDouble()) * 1.1
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 8.dp)) {
+        Text("■ Pas" + if (bucket > 1) " (moy. semaine)" else "", color = bar, style = MaterialTheme.typography.bodySmall)
+        Text("┄ Référence", color = guide, style = MaterialTheme.typography.bodySmall)
+    }
+    Canvas(Modifier.fillMaxWidth().height(150.dp).padding(top = 8.dp)) {
+        val w = size.width
+        val h = size.height
+        buckets.forEach { (from, to, v) ->
+            if (v == null || v <= 0) return@forEach
+            val x0 = (from - start).toFloat() / span * w
+            val x1 = (to - start + 1).toFloat() / span * w
+            val gap = (x1 - x0) * 0.15f
+            val bh = (v / max * h).toFloat()
+            drawRect(bar, Offset(x0 + gap, h - bh), Size(x1 - x0 - 2 * gap, bh))
+        }
+        val ty = h - (ref / max * h).toFloat()
+        drawLine(guide, Offset(0f, ty), Offset(w, ty), strokeWidth = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f)))
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Hint(dayText(start, span >= 90)); Hint(dayText(end, span >= 90))
+    }
+    Hint("Barres : 0 à ${nf(max)} pas.")
 }
 
 @Composable
