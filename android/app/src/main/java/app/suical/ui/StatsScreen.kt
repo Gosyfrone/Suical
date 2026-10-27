@@ -22,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -40,7 +39,6 @@ import app.suical.domain.PeriodStats
 import app.suical.domain.Weight
 import app.suical.domain.WeightStats
 import app.suical.domain.dailyTotals
-import app.suical.domain.entryEpochDay
 import app.suical.domain.periodStats
 import app.suical.domain.todayEpochDay
 import java.time.LocalDate
@@ -69,7 +67,7 @@ fun StatsScreen(x: Ctx) {
     val today = todayEpochDay()
 
     val firstDay = minOf(
-        x.s.log.minOfOrNull { entryEpochDay(it) } ?: today,
+        x.s.log.minOfOrNull { it.day } ?: today,
         x.s.weights.minOfOrNull { it.epochDay } ?: today,
     )
     val all = range == 0
@@ -152,14 +150,9 @@ private fun PeriodColumn(title: String, s: PeriodStats, modifier: Modifier) {
 @Composable
 fun WeightSection(x: Ctx, vm: MainViewModel, start: Long, end: Long, span: Int, inRange: List<Weight>) {
     val weights = x.s.weights
-    var input by rememberSaveable { mutableDoubleStateOf(weights.lastOrNull()?.kg ?: 0.0) }
 
     SectionTitle("Poids")
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        NumField(input, "Poids (kg)", Modifier.weight(1f)) { input = it }
-        PrimaryButton("Enregistrer", enabled = input in 20.0..400.0) { vm.setWeight(input) }
-    }
-    Hint("Une pesée par jour au plus : une nouvelle remplace celle d'aujourd'hui.", Modifier.padding(top = 4.dp))
+    Hint("La pesée se saisit dans le Journal, au jour voulu.")
 
     val cfg = x.s.config
     val trend = WeightStats.trendKgPerWeek(weights, end, windowDays = span.coerceAtLeast(14))

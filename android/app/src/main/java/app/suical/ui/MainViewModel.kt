@@ -19,7 +19,6 @@ import app.suical.domain.LogEntry
 import app.suical.domain.Nutrients
 import app.suical.domain.PlanConfig
 import app.suical.domain.Session
-import app.suical.domain.todayEpochDay
 import app.suical.llm.Change
 import app.suical.llm.LlmBridge
 import app.suical.llm.LlmImport
@@ -67,17 +66,29 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { ctx.value?.let { block(it) } }
     }
 
-    // ---- plats ----
-    fun eat(d: Dish) = act { x -> if (repo.eat(x.s, x.c, d)) say("${d.name} : c'est noté") }
+    // ---- journal ----
+    /** Note un plat à ce jour et ce moment, en le prenant dans le stock si `fromStock`. */
+    fun logDish(d: Dish, day: Long, slot: Int, fromStock: Boolean) = act { x ->
+        val used = repo.logDish(x.s, x.c, d, day, slot, fromStock)
+        say(if (fromStock && !used) "${d.name} : noté, mais pas assez de stock pour le déduire" else "${d.name} : c'est noté")
+    }
 
-    fun undo(e: LogEntry) = act { x -> repo.undo(x.s, x.c, e); say("Repas annulé") }
+    fun removeEntry(e: LogEntry) = act { x -> repo.removeEntry(x.s, e); say("Repas retiré") }
+
+    fun setEntryStock(e: LogEntry, on: Boolean) = act { x ->
+        if (!repo.setEntryStock(x.s, x.c, e, on)) say("Pas assez de stock pour le déduire")
+    }
+
+    fun moveEntry(e: LogEntry, slot: Int) { viewModelScope.launch { repo.moveEntry(e, e.day, slot) } }
 
     /** Repas hors plan : valeurs saisies à la main, sans toucher au stock. */
-    fun addExtra(name: String, kcal: Double, p: Double, g: Double, l: Double) = act {
+    fun addExtra(name: String, kcal: Double, p: Double, g: Double, l: Double, day: Long, slot: Int) = act {
         val nut = Nutrients.keys.associateWith { 0.0 } + mapOf("kcal" to kcal, "p" to p, "g" to g, "l" to l)
-        repo.addExtra(name.ifBlank { "Repas hors plan" }, nut)
+        repo.addExtra(name.ifBlank { "Repas hors plan" }, nut, day, slot)
         say("Repas ajouté")
     }
+
+    // ---- plats ----
 
     fun newDish(onCreated: (String) -> Unit) = act { x ->
         val id = uniqueId("plat", x.s.dishes.map { it.id }.toSet())
@@ -185,7 +196,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun saveConfig(c: PlanConfig) { viewModelScope.launch { repo.setConfig(c) } }
 
     // ---- poids ----
-    fun setWeight(kg: Double) { viewModelScope.launch { repo.setWeight(todayEpochDay(), kg); say("Poids enregistré") } }
+    fun setWeight(epochDay: Long, kg: Double) { viewModelScope.launch { repo.setWeight(epochDay, kg); say("Poids enregistré") } }
     fun deleteWeight(epochDay: Long) { viewModelScope.launch { repo.deleteWeight(epochDay) } }
 
     // ---- IA ----

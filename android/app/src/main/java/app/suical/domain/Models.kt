@@ -1,5 +1,8 @@
 package app.suical.domain
 
+import java.time.Instant
+import java.time.ZoneId
+
 /** Unités : "g" et "ml" (valeurs pour 100), "pc" et "boîte" (valeurs par unité). */
 val UNITS = listOf("g", "ml", "pc", "boîte")
 
@@ -30,6 +33,27 @@ data class Food(
 const val GROUP_MEAL = "repas"
 const val GROUP_DAILY = "jour"
 
+/** Moments d'une journée dans le journal. Le plan a deux créneaux : midi (0) → [SLOT_LUNCH], soir (1) → [SLOT_DINNER]. */
+const val SLOT_BREAKFAST = 0
+const val SLOT_LUNCH = 1
+const val SLOT_SNACK = 2
+const val SLOT_DINNER = 3
+val SLOTS = listOf(SLOT_BREAKFAST to "Petit-déjeuner", SLOT_LUNCH to "Midi", SLOT_SNACK to "Collation", SLOT_DINNER to "Soir")
+
+fun planSlotToMeal(planSlot: Int) = if (planSlot == 0) SLOT_LUNCH else SLOT_DINNER
+
+/** Moment le plus probable pour une heure donnée (repas notés avant l'arrivée des moments, saisie du jour). */
+fun slotOfHour(hour: Int) = when {
+    hour < 11 -> SLOT_BREAKFAST
+    hour < 15 -> SLOT_LUNCH
+    hour < 18 -> SLOT_SNACK
+    else -> SLOT_DINNER
+}
+
+/** Moment par défaut d'un plat « tous les jours » qui n'en a pas encore : le petit-déjeuner se reconnaît à son nom. */
+fun guessDailySlot(id: String, name: String) =
+    if (id == "petit_dej" || name.lowercase().contains("petit")) SLOT_BREAKFAST else SLOT_SNACK
+
 data class Dish(
     val id: String,
     val name: String,
@@ -37,19 +61,32 @@ data class Dish(
     val sauce: Boolean,
     val fresh: Boolean,
     val ing: Map<String, Double>,
+    /** Pour un plat « tous les jours » : le moment où il est prévu dans le journal. */
+    val slot: Int = SLOT_SNACK,
 )
 
-/** `ing` = ingrédients consommés (vide pour une portion déjà préparée). */
+/**
+ * Une ligne du journal, rangée par jour et par moment (pas par l'heure de saisie).
+ * `ing` = copie des ingrédients mangés : la modifier ne touche pas au plat d'origine.
+ * `ready` = une portion prête a été prise ; `fromStock` = les ingrédients ont été retirés du stock.
+ */
 data class LogEntry(
     val id: Long,
     val dishId: String,
+    /** Moment de la saisie, sert seulement à ordonner les lignes d'un même moment. */
     val t: Long,
     val ready: Boolean,
     val ing: Map<String, Double>,
     /** Repas hors plan : nom libre et valeurs saisies à la main (dishId vide). */
     val name: String = "",
     val custom: Map<String, Double> = emptyMap(),
-)
+    val day: Long = Instant.ofEpochMilli(t).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay(),
+    val slot: Int = slotOfHour(Instant.ofEpochMilli(t).atZone(ZoneId.systemDefault()).hour),
+    val fromStock: Boolean = !ready && dishId.isNotEmpty() && custom.isEmpty(),
+) {
+    /** Quelque chose a été pris dans le stock (portion prête ou ingrédients). */
+    val usesStock get() = ready || fromStock
+}
 
 data class Weight(val epochDay: Long, val kg: Double)
 

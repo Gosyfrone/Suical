@@ -1,8 +1,6 @@
 package app.suical.domain
 
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 
 /** Nutriments d'une ligne du journal : valeurs saisies à la main, ou calculées depuis les ingrédients. */
 fun Calc.entryNut(e: LogEntry): Nut {
@@ -11,16 +9,12 @@ fun Calc.entryNut(e: LogEntry): Nut {
     return nutOf(e.ing.ifEmpty { d?.let { effIng(it) } ?: emptyMap() })
 }
 
-fun entryEpochDay(e: LogEntry, zone: ZoneId = ZoneId.systemDefault()): Long =
-    Instant.ofEpochMilli(e.t).atZone(zone).toLocalDate().toEpochDay()
-
 /** Totaux nutritionnels par jour (clé = epochDay) pour les jours ayant au moins un repas noté. */
 fun Calc.dailyTotals(fromDay: Long, toDay: Long): Map<Long, Nut> {
     val out = LinkedHashMap<Long, MutableMap<String, Double>>()
     for (e in s.log) {
-        val day = entryEpochDay(e)
-        if (day < fromDay || day > toDay) continue
-        val acc = out.getOrPut(day) { Nutrients.keys.associateWith { 0.0 }.toMutableMap() }
+        if (e.day < fromDay || e.day > toDay) continue
+        val acc = out.getOrPut(e.day) { Nutrients.keys.associateWith { 0.0 }.toMutableMap() }
         for ((k, v) in entryNut(e)) acc[k] = acc.getValue(k) + v
     }
     return out

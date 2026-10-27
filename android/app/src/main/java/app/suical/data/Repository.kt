@@ -15,8 +15,6 @@ import org.json.JSONObject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
-/** Assez pour des statistiques sur plusieurs mois (~5 repas par jour). */
-private const val LOG_KEEP = 3000
 private const val K_SEEDED = "seeded"
 private const val K_TARGET = "target"
 private const val K_SAUCE = "sauce"
@@ -67,12 +65,12 @@ class Repository(private val db: SuicalDb) {
                 f.id to Food(f.id, f.name, f.unit, f.cat, f.pack, f.packLabel, f.price, Nutrients.keys.associateWith { n[it] ?: 0.0 })
             },
             dishes = dishes.map { d ->
-                Dish(d.id, d.name, d.grp, d.sauce, d.fresh, (ingBy[d.id] ?: emptyList()).associate { it.foodId to it.qty })
+                Dish(d.id, d.name, d.grp, d.sauce, d.fresh, (ingBy[d.id] ?: emptyList()).associate { it.foodId to it.qty }, d.slot)
             },
             plan = grid,
             stock = stock.associate { it.foodId to it.qty },
             ready = ready.filter { it.n > 0 }.associate { it.dishId to it.n },
-            log = log.map { LogEntry(it.id, it.dishId, it.t, it.ready, decodeIng(it.ing), it.name, decodeIng(it.custom)) },
+            log = log.map { LogEntry(it.id, it.dishId, it.t, it.ready, decodeIng(it.ing), it.name, decodeIng(it.custom), it.day, it.slot, it.fromStock) },
             target = set[K_TARGET]?.toIntOrNull(),
             sauce = set[K_SAUCE] ?: "creme",
             llmPkg = set[K_LLM] ?: DEFAULT_LLM_PKG,
@@ -119,7 +117,7 @@ class Repository(private val db: SuicalDb) {
     // ---- plats ----
     suspend fun saveDish(d: Dish) = tx {
         val sort = dao.dishSort(d.id) ?: dao.nextDishSort()
-        dao.put(DishE(d.id, d.name, d.group, d.sauce, d.fresh, sort))
+        dao.put(DishE(d.id, d.name, d.group, d.sauce, d.fresh, sort, d.slot))
         dao.deleteIngsOfDish(d.id)
         dao.putIngs(d.ing.map { (k, q) -> DishIngE(d.id, k, q) })
     }
@@ -135,43 +133,65 @@ class Repository(private val db: SuicalDb) {
     suspend fun setReady(dishId: String, n: Int) = if (n > 0) dao.put(ReadyE(dishId, n)) else dao.deleteReady(dishId)
 
     // ---- journal ----
-    suspend fun addLog(e: LogEntry) = tx {
-        dao.put(LogE(0, e.dishId, e.t, e.ready, encodeIng(e.ing), e.name, encodeIng(e.custom)))
-        dao.trimLog(LOG_KEEP)
-    }
-    suspend fun deleteLog(id: Long) = dao.deleteLog(id)
+    suspend fun addLog(e: LogEntry) = dao.put(toRow(e).copy(id = 0))
+    private suspend fun updateLog(e: LogEntry) = dao.put(toRow(e))
+    private fun toRow(e: LogEntry) =
+        LogE(e.id, e.dishId, e.t, e.ready, encodeIng(e.ing), e.name, encodeIng(e.custom), e.day, e.slot, e.fromStock)
 
     /**
-     * Note un plat comme mangé : consomme une portion prête, sinon les ingrédients du stock.
-     * @return false s'il n'y avait pas de quoi le faire.
+     * Note un plat dans le journal à ce jour et ce moment. Avec `fromStock`, prend une portion prête s'il y en a,
+     * sinon retire les ingrédients du stock ; s'il n'y a pas de quoi, le repas est noté sans toucher au stock.
+     * @return true si le stock a été utilisé.
      */
-    suspend fun eat(s: AppState, c: Calc, d: Dish): Boolean {
-        val ready = s.ready[d.id] ?: 0
-        val used = c.effIng(d)
-        val now = System.currentTimeMillis()
-        if (ready > 0) {
-            tx { setReady(d.id, ready - 1); addLog(LogEntry(0, d.id, now, true, used)) }
-        } else {
-            if (c.possible(d).n < 1) return false
-            tx {
-                used.forEach { (k, q) -> setStock(k, s.stockOf(k) - q) }
-                addLog(LogEntry(0, d.id, now, false, used))
-            }
+    suspend fun logDish(s: AppState, c: Calc, d: Dish, day: Long, slot: Int, fromStock: Boolean): Boolean {
+        val e = LogEntry(0, d.id, System.currentTimeMillis(), false, c.effIng(d), day = day, slot = slot, fromStock = false)
+        return tx {
+            val taken = if (fromStock) take(s, c, e) else e
+            addLog(taken)
+            taken.usesStock
         }
-        return true
     }
 
-    /** Annule une ligne du journal en rendant la portion ou les ingrédients. */
-    suspend fun undo(s: AppState, c: Calc, e: LogEntry) = tx {
+    /** Prend dans le stock ce que la ligne représente : une portion prête, sinon les ingrédients (s'il y en a assez). */
+    private suspend fun take(s: AppState, c: Calc, e: LogEntry): LogEntry {
         val d = s.dish(e.dishId)
-        if (d != null && e.ready) setReady(d.id, (s.ready[d.id] ?: 0) + 1)
-        else if (d != null) (e.ing.ifEmpty { c.effIng(d) }).forEach { (k, q) -> setStock(k, s.stockOf(k) + q) }
-        deleteLog(e.id)
+        val ready = d?.let { s.ready[it.id] } ?: 0
+        if (d != null && ready > 0) {
+            setReady(d.id, ready - 1)
+            return e.copy(ready = true, fromStock = false)
+        }
+        if (e.ing.isEmpty() || e.ing.any { (k, q) -> s.stockOf(k) < q }) return e.copy(ready = false, fromStock = false)
+        e.ing.forEach { (k, q) -> setStock(k, s.stockOf(k) - q) }
+        return e.copy(ready = false, fromStock = true)
     }
+
+    /** Rend au stock ce que la ligne y avait pris. */
+    private suspend fun giveBack(s: AppState, e: LogEntry): LogEntry {
+        val d = s.dish(e.dishId)
+        if (e.ready && d != null) setReady(d.id, (s.ready[d.id] ?: 0) + 1)
+        else if (e.fromStock) e.ing.forEach { (k, q) -> setStock(k, s.stockOf(k) + q) }
+        return e.copy(ready = false, fromStock = false)
+    }
+
+    /** Supprime une ligne du journal en rendant la portion ou les ingrédients pris. */
+    suspend fun removeEntry(s: AppState, e: LogEntry) = tx {
+        giveBack(s, e)
+        dao.deleteLog(e.id)
+    }
+
+    /** Interrupteur « pris dans mon stock ». @return false s'il fallait prendre et qu'il n'y avait pas de quoi. */
+    suspend fun setEntryStock(s: AppState, c: Calc, e: LogEntry, on: Boolean): Boolean = tx {
+        if (on == e.usesStock) return@tx true
+        val next = if (on) take(s, c, e) else giveBack(s, e)
+        updateLog(next)
+        next.usesStock == on
+    }
+
+    suspend fun moveEntry(e: LogEntry, day: Long, slot: Int) = updateLog(e.copy(day = day, slot = slot))
 
     /** Repas hors plan : ne touche pas au stock. */
-    suspend fun addExtra(name: String, nut: Map<String, Double>) =
-        addLog(LogEntry(0, "", System.currentTimeMillis(), false, emptyMap(), name, nut))
+    suspend fun addExtra(name: String, nut: Map<String, Double>, day: Long, slot: Int) =
+        addLog(LogEntry(0, "", System.currentTimeMillis(), false, emptyMap(), name, nut, day, slot, false))
 
     // ---- poids ----
     suspend fun setWeight(epochDay: Long, kg: Double) = dao.put(WeightE(epochDay, kg))

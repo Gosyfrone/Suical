@@ -42,6 +42,9 @@ import androidx.compose.ui.unit.sp
 import app.suical.domain.Dish
 import app.suical.domain.GROUP_DAILY
 import app.suical.domain.GROUP_MEAL
+import app.suical.domain.SLOTS
+import app.suical.domain.slotOfHour
+import app.suical.domain.todayEpochDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -120,7 +123,9 @@ private fun DishCard(x: Ctx, d: Dish, editing: Boolean, vm: MainViewModel, onTog
             Text(if (editing) "▴" else "▾", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp))
         }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AccentButton("Mangé", enabled = !zero, modifier = Modifier.weight(1f)) { vm.eat(d) }
+            AccentButton("Noter maintenant", modifier = Modifier.weight(1f)) {
+                vm.logDish(d, todayEpochDay(), slotOfHour(java.time.LocalTime.now().hour), fromStock = true)
+            }
             GhostButton(if (editing) "Fermer" else "Modifier", onClick = onToggle)
         }
         NutPanel(nut, "Valeurs nutritionnelles")
@@ -137,6 +142,9 @@ private fun DishEditor(x: Ctx, d: Dish, vm: MainViewModel, onDeleted: () -> Unit
         TextField(d.name, "Nom", Modifier.fillMaxWidth()) { vm.saveDish(d.copy(name = it)) }
         Hint("Catégorie")
         Segmented(listOf(GROUP_MEAL to "Midi ou soir", GROUP_DAILY to "Tous les jours"), d.group, fill = true) { vm.saveDish(d.copy(group = it)) }
+        if (d.group == GROUP_DAILY) {
+            Choice(SLOTS, d.slot, Modifier.fillMaxWidth(), label = "Prévu au journal") { vm.saveDish(d.copy(slot = it)) }
+        }
         Hint("Préparation")
         Segmented(listOf(false to "En lot", true to "Sur le moment"), d.fresh, fill = true) { vm.saveDish(d.copy(fresh = it)) }
         Row(verticalAlignment = Alignment.CenterVertically) {

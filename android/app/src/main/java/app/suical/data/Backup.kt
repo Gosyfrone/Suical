@@ -4,6 +4,7 @@ import app.suical.domain.AppState
 import app.suical.domain.DEFAULT_LLM_PKG
 import app.suical.domain.Dish
 import app.suical.domain.Food
+import app.suical.domain.guessDailySlot
 import app.suical.domain.LogEntry
 import app.suical.domain.Lever
 import app.suical.domain.PlanConfig
@@ -97,7 +98,7 @@ object Backup {
         o.put("dishes", JSONArray().also { arr ->
             for (d in s.dishes) arr.put(JSONObject().apply {
                 put("id", d.id); put("name", d.name); put("group", d.group)
-                put("sauce", d.sauce); put("fresh", d.fresh)
+                put("sauce", d.sauce); put("fresh", d.fresh); put("slot", d.slot)
                 put("ing", JSONObject().also { i -> d.ing.forEach { (k, q) -> i.put(k, q) } })
             })
         })
@@ -106,8 +107,10 @@ object Backup {
         o.put("ready", JSONObject().also { r -> s.ready.forEach { (k, n) -> r.put(k, n) } })
         o.put("log", JSONArray().also { arr ->
             for (e in s.log) arr.put(JSONObject().apply {
-                put("dish", e.dishId); put("t", e.t)
-                if (e.ready) put("ready", true) else put("ing", JSONObject().also { i -> e.ing.forEach { (k, q) -> i.put(k, q) } })
+                put("dish", e.dishId); put("t", e.t); put("day", e.day); put("slot", e.slot)
+                if (e.ready) put("ready", true)
+                if (e.fromStock) put("fromStock", true)
+                if (e.ing.isNotEmpty()) put("ing", JSONObject().also { i -> e.ing.forEach { (k, q) -> i.put(k, q) } })
                 if (e.name.isNotEmpty()) put("name", e.name)
                 if (e.custom.isNotEmpty()) put("custom", JSONObject().also { i -> e.custom.forEach { (k, q) -> i.put(k, q) } })
             })
@@ -142,6 +145,7 @@ object Backup {
                     d.getString("id"), d.optString("name", d.getString("id")), d.optString("group", "repas"),
                     d.optBoolean("sauce"), d.optBoolean("fresh"),
                     ing?.keys()?.asSequence()?.associateWith { ing.getDouble(it) } ?: emptyMap(),
+                    d.optInt("slot", guessDailySlot(d.getString("id"), d.optString("name"))),
                 )
             }
         }
@@ -159,11 +163,15 @@ object Backup {
             for (i in 0 until arr.length()) {
                 val e = arr.getJSONObject(i)
                 val ing = e.optJSONObject("ing")
-                log += LogEntry(
+                val entry = LogEntry(
                     0, e.optString("dish", ""), e.optLong("t"), e.optBoolean("ready"),
                     ing?.keys()?.asSequence()?.associateWith { ing.getDouble(it) } ?: emptyMap(),
                     e.optString("name", ""),
                     e.optJSONObject("custom")?.let { c -> c.keys().asSequence().associateWith { c.getDouble(it) } } ?: emptyMap(),
+                )
+                // Les exports d'avant les moments n'ont ni jour ni moment : on les déduit de l'heure.
+                log += if (!e.has("day")) entry else entry.copy(
+                    day = e.getLong("day"), slot = e.optInt("slot", entry.slot), fromStock = e.optBoolean("fromStock"),
                 )
             }
         }

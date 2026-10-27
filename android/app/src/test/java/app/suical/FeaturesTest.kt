@@ -5,6 +5,9 @@ import app.suical.data.OpenFoodFacts
 import app.suical.domain.Calc
 import app.suical.domain.Defaults
 import app.suical.domain.LogEntry
+import app.suical.domain.SLOT_BREAKFAST
+import app.suical.domain.SLOT_DINNER
+import app.suical.domain.SLOT_LUNCH
 import app.suical.domain.Metabolism
 import app.suical.domain.PlanConfig
 import app.suical.domain.Profile
@@ -17,6 +20,7 @@ import app.suical.domain.entryNut
 import app.suical.llm.LlmImport
 import app.suical.reminders.Reminders
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -192,6 +196,34 @@ class FeaturesTest {
         assertEquals(120.0, ch[0].qty, 0.0)
         assertEquals("fibres", ch[0].why)
         assertEquals(0.0, ch[1].qty, 0.0)
+    }
+
+    // ---- journal par jour et par moment ----
+    @Test fun legacyEntryGetsDayAndSlotFromItsTime() {
+        val noon = LocalDate.ofEpochDay(monday).atTime(12, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val e = LogEntry(1, "poulet_brocoli", noon, false, mapOf("pates" to 125.0))
+        assertEquals(monday, e.day)
+        assertEquals(SLOT_LUNCH, e.slot)
+        assertTrue(e.fromStock)
+        assertFalse(LogEntry(2, "", noon, false, emptyMap(), "Pizza", mapOf("kcal" to 800.0)).usesStock)
+    }
+
+    @Test fun entryLoggedForAPastDayCountsOnThatDay() {
+        // Saisi aujourd'hui (t), mais rangé au lundi : c'est le jour qui compte, pas l'heure de saisie.
+        val e = LogEntry(1, "", System.currentTimeMillis(), false, emptyMap(), "Kebab", mapOf("kcal" to 900.0),
+            day = monday, slot = SLOT_DINNER, fromStock = false)
+        val totals = Calc.of(fresh.copy(log = listOf(e))).dailyTotals(monday, monday)
+        assertEquals(900.0, totals.getValue(monday).getValue("kcal"), 0.0)
+    }
+
+    @Test fun backupKeepsDaySlotAndStockFlags() {
+        val e = LogEntry(0, "poulet_brocoli", 1_000, true, mapOf("pates" to 125.0), day = monday + 3, slot = SLOT_DINNER, fromStock = false)
+        val back = Backup.fromJson(Backup.toJson(fresh.copy(log = listOf(e))), fresh).log.single()
+        assertEquals(monday + 3, back.day)
+        assertEquals(SLOT_DINNER, back.slot)
+        assertTrue(back.ready)
+        assertEquals(125.0, back.ing.getValue("pates"), 0.0)
+        assertEquals(SLOT_BREAKFAST, Backup.fromJson(Backup.toJson(fresh), fresh).dish("petit_dej")!!.slot)
     }
 
     // ---- sauvegarde ----

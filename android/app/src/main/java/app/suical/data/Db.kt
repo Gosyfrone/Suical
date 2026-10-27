@@ -13,7 +13,10 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import app.suical.domain.slotOfHour
 import kotlinx.coroutines.flow.Flow
+import java.time.Instant
+import java.time.ZoneId
 
 @Entity(tableName = "food")
 data class FoodE(
@@ -39,6 +42,7 @@ data class DishE(
     val sauce: Boolean,
     val fresh: Boolean,
     val sort: Int,
+    @ColumnInfo(defaultValue = "2") val slot: Int = 2,
 )
 
 @Entity(tableName = "dish_ing", primaryKeys = ["dishId", "foodId"])
@@ -53,7 +57,7 @@ data class StockE(@PrimaryKey val foodId: String, val qty: Double)
 @Entity(tableName = "ready")
 data class ReadyE(@PrimaryKey val dishId: String, val n: Int)
 
-/** `ing` : "id=qté;id=qté" */
+/** `ing` : "id=qté;id=qté". `day` = epochDay, `slot` = moment de la journée. */
 @Entity(tableName = "log")
 data class LogE(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -63,6 +67,9 @@ data class LogE(
     val ing: String,
     @ColumnInfo(defaultValue = "''") val name: String = "",
     @ColumnInfo(defaultValue = "''") val custom: String = "",
+    @ColumnInfo(defaultValue = "0") val day: Long = 0,
+    @ColumnInfo(defaultValue = "0") val slot: Int = 0,
+    @ColumnInfo(defaultValue = "0") val fromStock: Boolean = false,
 )
 
 @Entity(tableName = "weight")
@@ -80,7 +87,7 @@ interface SuicalDao {
     @Query("SELECT * FROM plan") fun plan(): Flow<List<PlanE>>
     @Query("SELECT * FROM stock") fun stock(): Flow<List<StockE>>
     @Query("SELECT * FROM ready") fun ready(): Flow<List<ReadyE>>
-    @Query("SELECT * FROM log ORDER BY t DESC, id DESC") fun log(): Flow<List<LogE>>
+    @Query("SELECT * FROM log ORDER BY day DESC, slot, t, id") fun log(): Flow<List<LogE>>
     @Query("SELECT * FROM setting") fun settings(): Flow<List<SettingE>>
     @Query("SELECT * FROM weight ORDER BY day") fun weights(): Flow<List<WeightE>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(e: WeightE)
@@ -112,7 +119,6 @@ interface SuicalDao {
     @Query("DELETE FROM ready WHERE dishId = :id") suspend fun deleteReady(id: String)
     @Query("UPDATE plan SET dishId = '' WHERE dishId = :id") suspend fun clearPlanOf(id: String)
     @Query("DELETE FROM log WHERE id = :id") suspend fun deleteLog(id: Long)
-    @Query("DELETE FROM log WHERE id NOT IN (SELECT id FROM log ORDER BY t DESC, id DESC LIMIT :keep)") suspend fun trimLog(keep: Int)
     @Query("DELETE FROM setting WHERE k = :k") suspend fun deleteSetting(k: String)
 
     @Query("DELETE FROM food") suspend fun clearFoods()
@@ -128,7 +134,7 @@ interface SuicalDao {
 @Database(
     entities = [FoodE::class, FoodNutE::class, DishE::class, DishIngE::class, PlanE::class,
         StockE::class, ReadyE::class, LogE::class, SettingE::class, WeightE::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class SuicalDb : RoomDatabase() {
@@ -144,12 +150,35 @@ abstract class SuicalDb : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 : le journal est rangé par jour et par moment au lieu de l'heure de saisie, et retient si le stock
+         * a été utilisé. Les anciennes lignes reçoivent le jour et le moment de leur heure d'enregistrement.
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE log ADD COLUMN day INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE log ADD COLUMN slot INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE log ADD COLUMN fromStock INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE dish ADD COLUMN slot INTEGER NOT NULL DEFAULT 2")
+                db.execSQL("UPDATE dish SET slot = 0 WHERE grp = 'jour' AND (id = 'petit_dej' OR lower(name) LIKE '%petit%')")
+                val zone = ZoneId.systemDefault()
+                db.query("SELECT id, t, ready, dishId, custom FROM log").use { c ->
+                    while (c.moveToNext()) {
+                        val at = Instant.ofEpochMilli(c.getLong(1)).atZone(zone)
+                        val fromStock = c.getInt(2) == 0 && c.getString(3).isNotEmpty() && c.getString(4).isEmpty()
+                        db.execSQL("UPDATE log SET day = ?, slot = ?, fromStock = ? WHERE id = ?",
+                            arrayOf(at.toLocalDate().toEpochDay(), slotOfHour(at.hour), if (fromStock) 1 else 0, c.getLong(0)))
+                    }
+                }
+            }
+        }
+
         @Volatile private var instance: SuicalDb? = null
 
         /** Une seule instance partagée par l'app, le widget et les rappels. */
         fun get(context: Context): SuicalDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, SuicalDb::class.java, "suical.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build().also { instance = it }
         }
     }

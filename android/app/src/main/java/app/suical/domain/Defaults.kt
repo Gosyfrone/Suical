@@ -42,7 +42,7 @@ object Defaults {
         d("lieu_edamame", "Lieu et edamame", GROUP_MEAL, true, false, "pates" to 125, "lieu" to 150, "edamame" to 150),
         d("foie_epinards", "Foie de volaille et épinards", GROUP_MEAL, true, true, "pates" to 125, "foie" to 150, "epinards" to 100, "huile" to 5),
         d("pates_thon", "Pâtes thon-tomate", GROUP_MEAL, false, true, "pates" to 125, "thon" to 1, "coulis" to 175, "epinards" to 75, "huile" to 5),
-        d("petit_dej", "Petit-déjeuner", GROUP_DAILY, false, true, "avoine" to 50, "fromage_blanc" to 150, "oeufs" to 2),
+        d("petit_dej", "Petit-déjeuner", GROUP_DAILY, false, true, "avoine" to 50, "fromage_blanc" to 150, "oeufs" to 2).copy(slot = SLOT_BREAKFAST),
         d("bol_avoine", "Bol d'avoine", GROUP_DAILY, false, true, "avoine" to 60, "lait" to 200, "beurre_cacahuete" to 20, "bananes" to 1, "fruits_rouges" to 100),
         d("collation", "Collation du soir", GROUP_DAILY, false, true, "fromage_blanc" to 150, "whey" to 15, "amandes" to 20),
     )

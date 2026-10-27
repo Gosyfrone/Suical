@@ -15,6 +15,7 @@ import app.suical.domain.AppState
 import app.suical.domain.Calc
 import app.suical.domain.Dish
 import app.suical.domain.dailyTotals
+import app.suical.domain.planSlotToMeal
 import app.suical.domain.todayEpochDay
 import app.suical.ui.nf
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 
-/** Widget d'écran d'accueil : calories et protéines du jour, et un bouton « Mangé » pour le repas prévu. */
+/** Widget d'écran d'accueil : calories et protéines du jour, et un bouton « Valider » pour le repas prévu. */
 class SuicalWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
@@ -41,7 +42,8 @@ class SuicalWidget : AppWidgetProvider() {
                 val repo = Repository(context)
                 val s = repo.state().first()
                 val c = Calc.of(s)
-                plannedDish(s)?.let { repo.eat(s, c, it) }
+                val slot = planSlotToMeal(planSlotNow())
+                plannedDish(s)?.let { repo.logDish(s, c, it, todayEpochDay(), slot, fromStock = true) }
                 refresh(context, repo.state().first())
             } finally {
                 pending.finish()
@@ -52,11 +54,16 @@ class SuicalWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_EAT = "app.suical.widget.EAT"
 
-        /** Repas prévu maintenant : midi avant 15 h, soir ensuite. Null si le jour est hors plan. */
+        private fun planSlotNow(now: LocalTime = LocalTime.now()) = if (now.hour < 15) 0 else 1
+
+        /** Repas prévu maintenant : midi avant 15 h, soir ensuite. Null si le jour est hors plan ou si c'est déjà noté. */
         fun plannedDish(s: AppState, now: LocalTime = LocalTime.now()): Dish? {
-            val idx = s.config.indexOf(todayEpochDay()) ?: return null
-            val slot = if (now.hour < 15) 0 else 1
-            return s.plan.getOrNull(idx)?.getOrNull(slot)?.let { s.dish(it) }
+            val today = todayEpochDay()
+            val idx = s.config.indexOf(today) ?: return null
+            val planSlot = planSlotNow(now)
+            val d = s.plan.getOrNull(idx)?.getOrNull(planSlot)?.let { s.dish(it) } ?: return null
+            val slot = planSlotToMeal(planSlot)
+            return d.takeIf { s.log.none { e -> e.day == today && e.slot == slot && e.dishId == d.id } }
         }
 
         /** Redessine tous les widgets posés. Sans effet s'il n'y en a aucun. */
@@ -77,10 +84,9 @@ class SuicalWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.widget_prot, "${nf(prot)} g de protéines")
 
             val dish = plannedDish(s)
-            val canEat = dish != null && ((s.ready[dish.id] ?: 0) > 0 || c.possible(dish).n >= 1)
-            if (canEat) {
+            if (dish != null) {
                 v.setViewVisibility(R.id.widget_eat, View.VISIBLE)
-                v.setTextViewText(R.id.widget_eat, "Mangé : ${dish!!.name}")
+                v.setTextViewText(R.id.widget_eat, "Valider : ${dish.name}")
                 val eat = Intent(context, SuicalWidget::class.java).setAction(ACTION_EAT)
                 v.setOnClickPendingIntent(R.id.widget_eat,
                     PendingIntent.getBroadcast(context, 1, eat, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))

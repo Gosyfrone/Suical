@@ -40,10 +40,13 @@ puis « Coller la réponse » met à jour les aliments. Les prompts sont tous da
 | Photo d'étiquette envoyée à l'IA | Aliments > un aliment |
 | Scan de code-barres (Open Food Facts, seul usage d'internet) | Aliments |
 | Rappels : stock bas, veille de session de cuisine | Réglages > Rappels |
-| Widget : calories du jour + bouton « Mangé » du repas prévu | Écran d'accueil |
+| Widget : calories du jour + bouton « Valider » du repas prévu | Écran d'accueil |
 | Statistiques et courbe de poids, maintenance observée | « Stats » en haut |
-| Repas hors plan (nom + kcal + macros) | Plats |
+| Journal par jour (flèches, glisser, semaine, calendrier) et par moment : petit-déj, midi, collation, soir | Journal |
+| Repas prévus à valider, au bon jour même après coup ; « pris dans mon stock » réglable par repas | Journal |
+| Pesée du jour affiché | Journal |
+| Repas hors plan (nom + kcal + macros) ou un de mes plats, à n'importe quel moment | Journal > + |
 | Plan de 1 à 28 jours, jour 1 réglable | Réglages > Plan |
 
-Base de données en version 2 (migration automatique depuis la v1, testée).
+Base de données en version 3 (migrations automatiques v1 → v2 → v3 ; la v3 range les anciens repas au jour et au moment de leur saisie).
 `Reminders.messages`, `WeightStats`, `OpenFoodFacts.parse` et `LlmImport` sont du Kotlin pur, couverts par `FeaturesTest`.

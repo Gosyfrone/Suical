@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -32,11 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import app.suical.domain.todayEpochDay
 
 private class Tab(val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("Aujourd'hui", NavIcons.Home),
+    Tab("Journal", NavIcons.Home),
     Tab("Semaine", NavIcons.Calendar),
     Tab("Suivi", NavIcons.Chart),
     Tab("Courses", NavIcons.Cart),
@@ -56,6 +58,7 @@ fun App(vm: MainViewModel) {
     var suivi by rememberSaveable { mutableIntStateOf(SUIVI_STATS) }
     var courses by rememberSaveable { mutableIntStateOf(COURSES_BUY) }
     var food by rememberSaveable { mutableStateOf<String?>(null) }
+    var journalDay by rememberSaveable { mutableLongStateOf(todayEpochDay()) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -101,7 +104,7 @@ fun App(vm: MainViewModel) {
                 SUB_ALIMENTS -> FoodsScreen(ctx, vm, food) { food = it }
                 SUB_REGLAGES -> SettingsScreen(ctx, vm)
                 else -> when (tab) {
-                    TAB_TODAY -> TodayScreen(ctx, vm)
+                    TAB_TODAY -> JournalScreen(ctx, vm, journalDay) { journalDay = it }
                     TAB_WEEK -> WeekScreen(ctx, vm) { tab = TAB_SUIVI; suivi = SUIVI_MAINT }
                     TAB_SUIVI -> SuiviScreen(ctx, vm, suivi) { suivi = it }
                     TAB_COURSES -> CoursesScreen(ctx, vm, courses) { courses = it }
