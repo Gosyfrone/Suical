@@ -48,6 +48,16 @@ import app.suical.domain.Nutrients
 import app.suical.domain.SLOTS
 import app.suical.domain.entryNut
 import app.suical.domain.recentEntries
+import app.suical.llm.EstimatedItem
+import app.suical.llm.LlmBridge
+import app.suical.llm.LlmImport
+import app.suical.llm.MealEstimate
+import app.suical.llm.Prompts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import android.net.Uri
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -61,6 +71,10 @@ sealed interface AddStep {
     data class Items(val dishId: String, val name: String, val ing: Map<String, Double>) : AddStep
     data class OneFood(val foodId: String, val qty: Double) : AddStep
     data class Free(val name: String = "", val nut: Map<String, Double> = emptyMap()) : AddStep
+    /** Décrire (ou photographier) un plat inconnu et l'envoyer à l'IA. */
+    data object Ai : AddStep
+    /** Réponse de l'IA à relire et corriger avant d'ajouter. */
+    data class Estimate(val est: MealEstimate) : AddStep
 }
 
 private const val TAB_RECENT = 0
@@ -98,6 +112,12 @@ fun AddSheet(x: Ctx, vm: MainViewModel, day: Long, slot: Int, start: AddStep = A
                 is AddStep.Free -> StepScaffold("Saisie libre", where, back) {
                     FreeStep(s) { name, nut -> add(LogEntry(0, "", 0, false, emptyMap(), name.ifBlank { "Repas hors plan" }, nut)) }
                 }
+                AddStep.Ai -> StepScaffold("Estimer avec l'IA", where, back) { AiStep(x, vm) { step = AddStep.Estimate(it) } }
+                is AddStep.Estimate -> StepScaffold("Estimation de l'IA", where, back) {
+                    EstimateStep(x, s.est, fromStock, { fromStock = it }) { name, ing, custom ->
+                        add(LogEntry(0, "", 0, false, ing, name.ifBlank { "Repas estimé" }, custom))
+                    }
+                }
             }
         }
     }
@@ -122,6 +142,7 @@ private fun ColumnScope.Browse(x: Ctx, vm: MainViewModel, where: String, onDismi
             }
             GhostButton("Saisie libre", Modifier.weight(1f)) { go(AddStep.Free()) }
         }
+        AccentButton("Plat inconnu ? Estimer avec l'IA", modifier = Modifier.fillMaxWidth()) { go(AddStep.Ai) }
         if (query.isBlank()) ChipRow(listOf(TAB_RECENT to "Récents", TAB_DISHES to "Plats", TAB_FOODS to "Aliments"), tab) { tab = it }
     }
 
@@ -144,6 +165,8 @@ private fun ColumnScope.Browse(x: Ctx, vm: MainViewModel, where: String, onDismi
                     go(when {
                         dish != null -> AddStep.Items(dish.id, dish.name, x.c.effIng(dish))
                         food != null -> AddStep.OneFood(food.id, e.ing.values.first())
+                        e.custom.isNotEmpty() && e.ing.isNotEmpty() ->
+                            AddStep.Estimate(MealEstimate(e.name, e.ing, listOf(EstimatedItem("Part estimée", 1.0, false, e.custom))))
                         e.custom.isNotEmpty() -> AddStep.Free(e.name, e.custom)
                         else -> AddStep.Items("", e.name, e.ing)
                     })
@@ -250,6 +273,75 @@ private fun FreeStep(s: AddStep.Free, onAdd: (String, Map<String, Double>) -> Un
     }
     PrimaryButton("Ajouter au journal", enabled = kcal > 0, modifier = Modifier.fillMaxWidth()) {
         onAdd(name.trim(), Nutrients.keys.associateWith { 0.0 } + mapOf("kcal" to kcal, "p" to p, "g" to g, "l" to l))
+    }
+}
+
+/** Description libre et/ou photo, envoyées à l'app IA ; sa réponse revient par le presse-papier. */
+@Composable
+private fun AiStep(x: Ctx, vm: MainViewModel, onEstimate: (MealEstimate) -> Unit) {
+    val context = LocalContext.current
+    var text by rememberSaveable { mutableStateOf("") }
+    var photo by remember { mutableStateOf<Uri?>(null) }
+    var sent by rememberSaveable { mutableStateOf(false) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        photo?.let { if (ok) { vm.sendToLlm(context, Prompts.mealEstimate(x.s, text, withPhoto = true), it); sent = true } }
+        photo = null
+    }
+    Hint("Décris ce que tu as mangé, sa taille et ce qui change par rapport à d'habitude. L'IA répond avec une estimation que tu pourras corriger.")
+    OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth().heightIn(min = 110.dp),
+        label = { Text("Ex. : kebab galette, sauce blanche, sans frites") })
+    PrimaryButton("1. Envoyer à l'IA", enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        vm.sendToLlm(context, Prompts.mealEstimate(x.s, text, withPhoto = false)); sent = true
+    }
+    GhostButton("1. Ou prendre une photo du plat", Modifier.fillMaxWidth()) {
+        val dir = File(context.cacheDir, "photos").apply { mkdirs() }
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", File(dir, "meal-${System.currentTimeMillis()}.jpg"))
+        photo = uri
+        camera.launch(uri)
+    }
+    Hint(if (sent) "Dans l'app IA, copie sa réponse, puis reviens ici." else "La réponse de l'IA se copie puis se colle ici.")
+    AccentButton("2. Coller la réponse de l'IA", modifier = Modifier.fillMaxWidth()) {
+        try {
+            onEstimate(LlmImport.parseMealEstimate(LlmBridge.paste(context), x.s.foods.keys))
+        } catch (e: Exception) {
+            vm.say(e.message ?: "Réponse illisible")
+        }
+    }
+}
+
+/** Relecture de l'estimation : nom, quantités des éléments estimés et de mes aliments, avant l'ajout. */
+@Composable
+private fun EstimateStep(
+    x: Ctx, est: MealEstimate, fromStock: Boolean, onStock: (Boolean) -> Unit,
+    onAdd: (String, Map<String, Double>, Map<String, Double>) -> Unit,
+) {
+    var name by remember(est) { mutableStateOf(est.name) }
+    var ing by remember(est) { mutableStateOf(est.ing) }
+    var others by remember(est) { mutableStateOf(est.others.map { it to it.qty }) }
+    val custom = Nutrients.keys.associateWith { k -> others.sumOf { (item, q) -> item.nutFor(q)[k] ?: 0.0 } }
+    val mine = x.c.nutOf(ing)
+    MacroRow(Nutrients.keys.associateWith { mine.getValue(it) + custom.getValue(it) })
+    if (est.note.isNotEmpty()) Hint("Hypothèses de l'IA : ${est.note}")
+    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nom") }, singleLine = true)
+    if (others.isNotEmpty()) {
+        Hint("Estimé par l'IA")
+        others.forEachIndexed { i, (item, q) ->
+            key(i, item.name) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    NumField(q, item.name + if (item.grams) " (g)" else " (portion)", Modifier.weight(1f)) { v ->
+                        others = others.toMutableList().also { it[i] = item to v }
+                    }
+                    Text(nf(item.nutFor(q)["kcal"] ?: 0.0) + " kcal", Modifier.padding(start = 8.dp), fontWeight = FontWeight.SemiBold)
+                    IconButton({ others = others.filterIndexed { j, _ -> j != i } }) { Icon(Icons.Default.Clear, "Retirer " + item.name) }
+                }
+            }
+        }
+    }
+    IngredientsEditor(x, ing) { ing = it }
+    Hint("Les valeurs suivent les quantités que tu corriges.")
+    if (ing.isNotEmpty()) StockSwitch(fromStock, "Retire mes aliments de cette liste du stock", onStock)
+    PrimaryButton("Ajouter au journal", enabled = ing.isNotEmpty() || others.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+        onAdd(name.trim(), ing, if (others.isEmpty()) emptyMap() else custom)
     }
 }
 

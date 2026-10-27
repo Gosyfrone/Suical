@@ -2,11 +2,14 @@ package app.suical.domain
 
 import java.time.LocalDate
 
-/** Nutriments d'une ligne du journal : valeurs saisies à la main, ou calculées depuis les ingrédients. */
+/**
+ * Nutriments d'une ligne du journal : ceux des ingrédients plus les valeurs saisies ou estimées (`custom`).
+ * Une ligne sans rien des deux (ancienne portion prête) reprend le plat.
+ */
 fun Calc.entryNut(e: LogEntry): Nut {
-    if (e.custom.isNotEmpty()) return Nutrients.keys.associateWith { e.custom[it] ?: 0.0 }
     val d = s.dish(e.dishId)
-    return nutOf(e.ing.ifEmpty { d?.let { effIng(it) } ?: emptyMap() })
+    val base = nutOf(if (e.ing.isEmpty() && e.custom.isEmpty()) d?.let { effIng(it) } ?: emptyMap() else e.ing)
+    return Nutrients.keys.associateWith { base.getValue(it) + (e.custom[it] ?: 0.0) }
 }
 
 /** Totaux nutritionnels par jour (clé = epochDay) pour les jours ayant au moins un repas noté. */

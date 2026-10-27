@@ -240,6 +240,35 @@ class FeaturesTest {
         assertEquals(2.0, r[2].ing.getValue("bananes"), 0.0) // la dernière quantité est reprise
     }
 
+    // ---- estimation IA d'un repas ----
+    @Test fun mealEstimateSplitsMyFoodsFromEstimatedItems() {
+        val reply = """Voici :
+            ```json
+            {"name": "Kebab", "items": [
+              {"food": "poulet", "qty": 120},
+              {"food": "inconnu_sans_valeurs", "qty": 50},
+              {"name": "Pain pita", "grams": 90, "nut": {"kcal": 250, "p": "8,5", "g": 50, "l": 1}},
+              {"name": "Sauce blanche", "nut": {"kcal": 120, "l": 12}}
+            ], "note": "galette moyenne"}
+            ```"""
+        val est = LlmImport.parseMealEstimate(reply, fresh.foods.keys)
+        assertEquals("Kebab", est.name)
+        assertEquals(mapOf("poulet" to 120.0), est.ing)
+        assertEquals(listOf("Pain pita", "Sauce blanche"), est.others.map { it.name })
+        assertEquals(8.5, est.others[0].nut.getValue("p"), 0.0)
+        assertTrue(est.others[0].grams)
+        assertFalse(est.others[1].grams) // sans grammes : une portion
+        assertEquals(125.0, est.others[0].nutFor(45.0).getValue("kcal"), 0.001)
+        assertEquals("galette moyenne", est.note)
+    }
+
+    @Test fun estimatedEntryAddsMyFoodsAndEstimatedValues() {
+        val e = LogEntry(1, "", 1_000, false, mapOf("poulet" to 100.0), "Kebab", mapOf("kcal" to 300.0), day = monday, slot = 3)
+        val c = Calc.of(fresh)
+        val poulet = c.nutOf(mapOf("poulet" to 100.0)).getValue("kcal")
+        assertEquals(poulet + 300.0, c.entryNut(e).getValue("kcal"), 0.001)
+    }
+
     // ---- sauvegarde ----
     @Test fun backupKeepsWeightsExtrasAndPlanLength() {
         val extra = LogEntry(0, "", 1_000, false, emptyMap(), "Pizza", mapOf("kcal" to 800.0))

@@ -54,6 +54,15 @@ object LlmBridge {
     }
 }
 
+/** Un élément estimé par l'IA qui n'est pas dans mes aliments : `nut` vaut pour `qty` (grammes, ou portions si `grams` est faux). */
+data class EstimatedItem(val name: String, val qty: Double, val grams: Boolean, val nut: Map<String, Double>) {
+    /** Valeurs pour une autre quantité, à proportion. */
+    fun nutFor(q: Double): Map<String, Double> = if (qty <= 0) nut else nut.mapValues { it.value * q / qty }
+}
+
+/** Repas estimé par l'IA : `ing` = mes aliments et leurs quantités, `others` = le reste. */
+data class MealEstimate(val name: String, val ing: Map<String, Double>, val others: List<EstimatedItem>, val note: String = "")
+
 /** Une recette proposée par l'IA, pas encore enregistrée. */
 data class RecipeDraft(val dish: Dish, val newFoods: List<Food>)
 
@@ -126,6 +135,30 @@ object LlmImport {
         }
         val group = if (o.optString("group") == "jour") "jour" else "repas"
         return RecipeDraft(Dish("", name, group, o.optBoolean("sauce"), o.optBoolean("fresh"), ing), foods)
+    }
+
+    /** Estimation de [Prompts.mealEstimate]. Un identifiant d'aliment inconnu est gardé seulement s'il vient avec ses valeurs. */
+    fun parseMealEstimate(text: String, known: Set<String>): MealEstimate {
+        val o = jsonObject(text)
+        val arr = o.optJSONArray("items") ?: throw IllegalArgumentException("Aucun élément dans la réponse")
+        val ing = LinkedHashMap<String, Double>()
+        val others = ArrayList<EstimatedItem>()
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i) ?: continue
+            val food = item.optString("food")
+            val qty = number(item.opt("qty"))
+            if (food in known && qty != null && qty > 0) {
+                ing[food] = (ing[food] ?: 0.0) + qty
+                continue
+            }
+            val nut = readNutrients(item.optJSONObject("nut") ?: continue)
+            if (nut.isEmpty()) continue
+            val grams = number(item.opt("grams"))?.takeIf { g -> g > 0 }
+            val name = item.optString("name").trim().ifEmpty { food.ifEmpty { "Élément" } }
+            others += EstimatedItem(name, grams ?: 1.0, grams != null, Nutrients.keys.associateWith { k -> nut[k] ?: 0.0 })
+        }
+        if (ing.isEmpty() && others.isEmpty()) throw IllegalArgumentException("Aucun élément exploitable dans la réponse")
+        return MealEstimate(o.optString("name").trim().ifEmpty { "Repas estimé" }, ing, others, o.optString("note").trim())
     }
 
     /** Changements proposés par [Prompts.weekReview]. */

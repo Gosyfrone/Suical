@@ -290,6 +290,7 @@ private fun adjusted(x: Ctx, e: LogEntry): String? {
 private fun stockLabel(e: LogEntry) = when {
     e.ready -> "Portion prête utilisée"
     e.fromStock -> "Pris dans le stock"
+    e.custom.isNotEmpty() && e.ing.isNotEmpty() -> "Estimé"
     e.custom.isNotEmpty() -> "Saisie libre"
     else -> "Hors stock"
 }
@@ -346,11 +347,12 @@ private fun EntrySheet(x: Ctx, vm: MainViewModel, e: LogEntry, onDismiss: () -> 
         Column(Modifier.fillMaxHeight(0.92f).imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            MacroRow(if (e.custom.isEmpty() && ing.isNotEmpty()) x.c.nutOf(ing) else x.c.entryNut(e))
+            MacroRow(x.c.entryNut(e.copy(ing = ing)))
             Choice(SLOTS, e.slot, Modifier.fillMaxWidth(), label = "Moment") { vm.moveEntry(e, it) }
             if (e.ing.isNotEmpty()) {
                 IngredientsEditor(x, ing) { ing = it }
                 if (e.dishId.isNotEmpty()) Hint("Ne change que ce repas, pas le plat.")
+                if (e.custom.isNotEmpty()) Hint("Plus ${nf(e.custom["kcal"] ?: 0.0)} kcal estimés par l'IA, non modifiables ici.")
             }
             if (e.ing.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

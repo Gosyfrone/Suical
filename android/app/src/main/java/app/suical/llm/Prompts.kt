@@ -79,6 +79,25 @@ object Prompts {
         appendLine("{\"changes\": [{\"dish\": \"<id plat>\", \"food\": \"<id aliment>\", \"qty\": 100, \"why\": \"raison courte\"}]}")
     }
 
+    /**
+     * Estimation d'un repas inconnu (restaurant, plat d'un proche…) décrit en quelques mots, avec ou sans photo.
+     * Les éléments qui sont l'un de mes aliments sont rendus en quantité ; les autres avec leurs valeurs estimées.
+     */
+    fun mealEstimate(s: AppState, description: String, withPhoto: Boolean): String = buildString {
+        if (withPhoto) appendLine("La photo jointe montre ce que j'ai mangé.")
+        appendLine("Estime les valeurs nutritionnelles de ce repas pour mon suivi. Description : « ${description.trim().ifEmpty { "voir la photo" }} ».")
+        appendLine("Décompose-le en éléments (pain, viande, sauce, accompagnement…) et estime la quantité réellement mangée de chacun, d'après des portions habituelles (restaurant ou fait maison selon le contexte).")
+        appendLine()
+        appendLine("Mes aliments (identifiant | nom | unité) — utilise un identifiant seulement si c'est vraiment cet aliment :")
+        s.foods.values.forEach { appendLine("- ${it.id} | ${it.name} | ${it.unit}") }
+        appendLine()
+        appendLine("Nutriments pour `nut`, valeurs pour la quantité mangée (clé = unité) : ${nutrientKeys()}")
+        appendLine()
+        appendLine("Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour ni bloc de code :")
+        appendLine("{\"name\": \"Nom court du repas\", \"items\": [{\"food\": \"<id de mes aliments>\", \"qty\": 125}, {\"name\": \"Pain pita\", \"grams\": 90, \"nut\": {${nutrientTemplate()}}}], \"note\": \"hypothèses principales, en une phrase\"}")
+        appendLine("`qty` est dans l'unité de mon aliment (g, ml ou pièces). Pour un élément qui n'est pas dans mes aliments, donne `name`, `grams` et `nut` complet (meilleure estimation plutôt que 0).")
+    }
+
     /** Demande une recette à partir d'un souhait libre, en s'appuyant sur les aliments et le stock. */
     fun recipe(s: AppState, request: String): String = buildString {
         appendLine("Crée-moi une recette pour mon suivi nutritionnel. Ma demande : « ${request.trim()} ».")
