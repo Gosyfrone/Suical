@@ -187,6 +187,18 @@ class Repository(private val db: SuicalDb) {
         dao.deleteLog(e.id)
     }
 
+    /** Remet une ligne supprimée, en reprenant dans le stock ce qu'elle y avait pris. */
+    suspend fun restoreEntry(s: AppState, e: LogEntry) = tx {
+        val d = s.dish(e.dishId)
+        val ready = d?.let { s.ready[it.id] } ?: 0
+        val back = when {
+            e.ready && ready > 0 -> { setReady(d!!.id, ready - 1); e }
+            e.fromStock -> { e.ing.forEach { (k, q) -> setStock(k, s.stockOf(k) - q) }; e }
+            else -> e.copy(ready = false, fromStock = false)
+        }
+        addLog(back)
+    }
+
     /** Interrupteur « pris dans mon stock ». @return false s'il fallait prendre et qu'il n'y avait pas de quoi. */
     suspend fun setEntryStock(s: AppState, c: Calc, e: LogEntry, on: Boolean): Boolean = tx {
         if (on == e.usesStock) return@tx true

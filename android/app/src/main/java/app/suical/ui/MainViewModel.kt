@@ -57,8 +57,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val stepsConnected: StateFlow<Boolean> = _stepsConnected
     private var lastStepsSync = 0L
 
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
-    val messages: SharedFlow<String> = _messages
+    /** Message en bas d'écran, avec une action facultative (« Annuler »). */
+    class Msg(val text: String, val action: String? = null, val onAction: () -> Unit = {})
+
+    private val _messages = MutableSharedFlow<Msg>(extraBufferCapacity = 8)
+    val messages: SharedFlow<Msg> = _messages
 
     init {
         viewModelScope.launch { repo.seedIfNeeded() }
@@ -69,7 +72,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun say(msg: String) { _messages.tryEmit(msg) }
+    fun say(msg: String) { _messages.tryEmit(Msg(msg)) }
     private fun act(block: suspend (Ctx) -> Unit) {
         viewModelScope.launch { ctx.value?.let { block(it) } }
     }
@@ -90,7 +93,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun setEntryIng(e: LogEntry, ing: Map<String, Double>) = act { x -> repo.setEntryIng(x.s, e, ing); say("Repas modifié") }
 
-    fun removeEntry(e: LogEntry) = act { x -> repo.removeEntry(x.s, e); say("Repas retiré") }
+    /** Supprime la ligne ; « Annuler » la remet telle quelle (stock compris). */
+    fun removeEntry(e: LogEntry) = act { x ->
+        repo.removeEntry(x.s, e)
+        val name = x.s.dish(e.dishId)?.name ?: e.name.ifEmpty { "Repas" }
+        _messages.tryEmit(Msg("$name retiré", "Annuler") { act { y -> repo.restoreEntry(y.s, e) } })
+    }
 
     fun setEntryStock(e: LogEntry, on: Boolean) = act { x ->
         if (!repo.setEntryStock(x.s, x.c, e, on)) say("Pas assez de stock pour le déduire")

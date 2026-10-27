@@ -29,6 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.DatePicker
@@ -48,7 +52,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -151,9 +154,14 @@ private fun DayHeader(day: Long, today: Long, first: Long, last: Long, onPick: (
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton({ go(day - 1) }, enabled = day > first) { Icon(Icons.Default.KeyboardArrowLeft, "Jour précédent") }
-        Column(Modifier.weight(1f).clickable(onClick = onPick).padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
-            Hint(sub)
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.clickable(onClick = onPick))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Hint(sub, Modifier.clickable(onClick = onPick))
+                if (day != today) Text("  ·  Aujourd'hui ›", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { go(today) }.padding(vertical = 4.dp))
+            }
         }
         IconButton({ go(day + 1) }, enabled = day < last) { Icon(Icons.Default.KeyboardArrowRight, "Jour suivant") }
     }
@@ -190,9 +198,6 @@ private fun WeekStrip(day: Long, today: Long, last: Long, logged: Set<Long>, go:
                 }
             }
         }
-        if (day != today) {
-            TextButton({ go(today) }, Modifier.align(Alignment.CenterHorizontally)) { Text("Revenir à aujourd'hui", fontWeight = FontWeight.SemiBold) }
-        }
     }
 }
 
@@ -219,15 +224,26 @@ private fun DayPage(x: Ctx, vm: MainViewModel, day: Long) {
 
     var adding by remember { mutableStateOf<AddRequest?>(null) }
     var opened by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Un jour passé n'affiche pas ses repas prévus non notés : ils ne servent plus qu'à rattraper un oubli.
+    val past = day < todayEpochDay()
+    var showPlanned by rememberSaveable(day) { mutableStateOf(false) }
+    val shownPlanned = if (past && !showPlanned) emptyList() else planned
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Hero(eaten, goal, target) }
         item { StepsPanel(x, vm, day) }
         item { WeightPanel(x, vm, day) }
         items(SLOTS, key = { it.first }) { (slot, label) ->
-            SlotSection(x, vm, label, entries.filter { it.slot == slot }, planned.filter { it.slot == slot }, day,
+            SlotSection(x, vm, label, entries.filter { it.slot == slot }, shownPlanned.filter { it.slot == slot }, day,
                 onAdd = { adding = AddRequest(slot) }, onOpen = { opened = it.id },
                 onEdit = { p -> adding = AddRequest(p.slot, AddStep.Items(p.dish.id, p.dish.name, x.c.effIng(p.dish)), stock = true) })
+        }
+        if (past && planned.isNotEmpty()) item {
+            val n = planned.size
+            TextButton({ showPlanned = !showPlanned }, Modifier.fillMaxWidth()) {
+                Text(if (showPlanned) "Masquer les repas prévus"
+                    else "$n ${if (n > 1) "repas prévus non notés" else "repas prévu non noté"} · Afficher", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 
@@ -305,34 +321,46 @@ private fun PlannedRow(x: Ctx, vm: MainViewModel, p: Planned, day: Long, onEdit:
     val nut = x.c.nutOf(x.c.effIng(d))
     Row(Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("PRÉVU · TOUCHER POUR AJUSTER", fontSize = 10.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+            Text("PRÉVU", fontSize = 10.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
             Text(d.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when {
                 ready > 0 -> Hint("${nf(nut.getValue("kcal"))} kcal · $ready ${if (ready > 1) "portions prêtes" else "portion prête"}")
                 possible >= 1 -> Hint("${nf(nut.getValue("kcal"))} kcal · pris dans le stock")
-                else -> Hint("${nf(nut.getValue("kcal"))} kcal · pas assez de stock", error = true)
+                else -> Hint("${nf(nut.getValue("kcal"))} kcal · pas en stock")
             }
         }
-        AccentButton("Valider", modifier = Modifier.padding(start = 8.dp)) { vm.logDish(d, day, p.slot, fromStock = true) }
+        IconButton(onEdit) { Icon(Icons.Default.Edit, "Ajuster ${d.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        GhostButton("Valider") { vm.logDish(d, day, p.slot, fromStock = true) }
     }
 }
 
-/** Pesée du jour affiché : le champ part de la pesée du jour, sinon de la dernière connue avant. */
+/**
+ * Pesée du jour affiché. Sans pesée ce jour, le champ reste vide (la dernière pesée n'est qu'une indication),
+ * pour ne jamais enregistrer par erreur le poids d'un autre jour.
+ */
 @Composable
 private fun WeightPanel(x: Ctx, vm: MainViewModel, day: Long) {
     val w = x.s.weights.firstOrNull { it.epochDay == day }
     val before = x.s.weights.filter { it.epochDay < day }.maxByOrNull { it.epochDay }?.kg
-    var input by remember(day, w?.kg) { mutableDoubleStateOf(w?.kg ?: before ?: 0.0) }
+    var text by remember(day, w?.kg) { mutableStateOf(w?.kg?.let { plain(it) } ?: "") }
+    val input = text.replace(',', '.').toDoubleOrNull()
+    val valid = input != null && input in 20.0..400.0
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Poids", fontWeight = FontWeight.SemiBold)
-                Hint(if (w != null) "Pesée enregistrée" else "Pas de pesée ce jour")
+                Hint(when {
+                    w != null -> "Pesée enregistrée"
+                    before != null -> "Dernière : ${nf(before, 1)} kg"
+                    else -> "Pas de pesée ce jour"
+                })
             }
-            NumField(input, "kg", Modifier.width(96.dp)) { input = it }
+            OutlinedTextField(text, { t -> if (t.all { it.isDigit() || it == '.' || it == ',' }) text = t }, Modifier.width(96.dp),
+                label = { Text("kg") }, placeholder = { Text(before?.let { nf(it, 1) } ?: "", color = MaterialTheme.colorScheme.outline) },
+                singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             Spacer(Modifier.width(8.dp))
             if (w != null && input == w.kg) TextButton({ vm.deleteWeight(day) }) { Text("Retirer") }
-            else PrimaryButton(if (w == null) "OK" else "Modifier", enabled = input in 20.0..400.0) { vm.setWeight(day, input) }
+            else PrimaryButton(if (w == null) "OK" else "Modifier", enabled = valid) { vm.setWeight(day, input!!) }
         }
     }
 }

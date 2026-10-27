@@ -15,7 +15,9 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -66,7 +68,9 @@ fun App(vm: MainViewModel) {
     LaunchedEffect(Unit) {
         vm.messages.collect {
             snack.currentSnackbarData?.dismiss()
-            snack.showSnackbar(it)
+            val r = snack.showSnackbar(it.text, actionLabel = it.action, withDismissAction = false,
+                duration = if (it.action != null) SnackbarDuration.Long else SnackbarDuration.Short)
+            if (r == SnackbarResult.ActionPerformed) it.onAction()
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.syncSteps() }
