@@ -20,7 +20,7 @@ import app.suical.domain.Nutrients
 import app.suical.domain.PlanConfig
 import app.suical.domain.Session
 import app.suical.domain.todayEpochDay
-import app.suical.health.HealthSteps
+import app.suical.health.Health
 import app.suical.llm.Change
 import app.suical.llm.LlmBridge
 import app.suical.llm.LlmImport
@@ -228,16 +228,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         lastStepsSync = now
         viewModelScope.launch {
             try {
-                val ok = HealthSteps.granted(app)
+                val ok = Health.stepsGranted(app)
                 _stepsConnected.value = ok
                 if (!ok) { if (force) say("Accès aux pas refusé"); return@launch }
                 val today = todayEpochDay()
-                val steps = HealthSteps.daily(app, today - 29, today)
+                val steps = Health.dailySteps(app, today - 29, today)
                 repo.setSteps(steps)
                 if (force) say(if (steps.isEmpty()) "Aucun pas trouvé dans Health Connect" else "Pas synchronisés")
             } catch (e: Exception) {
                 if (force) say("Health Connect : " + (e.message ?: "erreur"))
             }
+        }
+    }
+
+    /**
+     * Import ponctuel depuis Health Connect, pour quitter Zepp : pas et pesées jusqu'à 5 ans en arrière.
+     * Une pesée déjà notée dans Suical n'est jamais remplacée ; ensuite, le poids se note dans Suical seulement.
+     */
+    fun importHistory() = act { x ->
+        try {
+            val granted = Health.granted(app)
+            val today = todayEpochDay()
+            val from = today - 5 * 365
+            val steps = if (Health.canReadSteps(granted)) Health.dailySteps(app, from, today) else emptyMap()
+            val weights = if (Health.canReadWeight(granted)) Health.dailyWeights(app, from, today) else emptyMap()
+            val known = x.s.weights.map { it.epochDay }.toSet()
+            val newWeights = weights.filterKeys { it !in known }
+            repo.tx {
+                repo.setSteps(steps)
+                newWeights.forEach { (d, kg) -> repo.setWeight(d, kg) }
+            }
+            if (steps.isNotEmpty()) _stepsConnected.value = true
+            val history = Health.canReadHistory(granted)
+            say("Importé : ${steps.size} jours de pas, ${newWeights.size} pesées" +
+                if (history) "" else " (30 derniers jours seulement : historique refusé)")
+        } catch (e: Exception) {
+            say("Health Connect : " + (e.message ?: "erreur"))
         }
     }
 

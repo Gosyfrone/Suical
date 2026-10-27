@@ -18,21 +18,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.suical.domain.Metabolism
 import app.suical.domain.dayTarget
-import app.suical.health.HealthSteps
+import app.suical.health.Health
 import kotlin.math.abs
 
 /** Lance la connexion à Health Connect : autorisation, ou installation si besoin. */
 @Composable
 fun rememberConnectSteps(vm: MainViewModel): () -> Unit {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(HealthSteps.permissionContract()) { vm.syncSteps(force = true) }
-    return {
-        when (HealthSteps.availability(context)) {
-            HealthSteps.Availability.READY -> launcher.launch(HealthSteps.PERMISSIONS)
-            HealthSteps.Availability.NEEDS_INSTALL ->
-                runCatching { context.startActivity(HealthSteps.installIntent()) }.onFailure { vm.say("Installe Health Connect depuis le Play Store") }
-            HealthSteps.Availability.UNSUPPORTED -> vm.say("Health Connect n'est pas disponible sur ce téléphone")
-        }
+    val launcher = rememberLauncherForActivityResult(Health.permissionContract()) { vm.syncSteps(force = true) }
+    return { withHealth(context, vm) { launcher.launch(Health.STEPS) } }
+}
+
+/** Demande pas, poids et historique, puis importe tout. */
+@Composable
+fun rememberImportHistory(vm: MainViewModel): () -> Unit {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(Health.permissionContract()) { vm.importHistory() }
+    return { withHealth(context, vm) { launcher.launch(Health.IMPORT) } }
+}
+
+private fun withHealth(context: android.content.Context, vm: MainViewModel, ready: () -> Unit) {
+    when (Health.availability(context)) {
+        Health.Availability.READY -> ready()
+        Health.Availability.NEEDS_INSTALL ->
+            runCatching { context.startActivity(Health.installIntent()) }.onFailure { vm.say("Installe Health Connect depuis le Play Store") }
+        Health.Availability.UNSUPPORTED -> vm.say("Health Connect n'est pas disponible sur ce téléphone")
     }
 }
 
@@ -66,6 +76,7 @@ fun StepsPanel(x: Ctx, vm: MainViewModel, day: Long) {
 fun StepsSettings(x: Ctx, vm: MainViewModel) {
     val connected by vm.stepsConnected.collectAsState()
     val connect = rememberConnectSteps(vm)
+    val import = rememberImportHistory(vm)
     val cfg = x.s.config
     val kg = x.s.weights.maxByOrNull { it.epochDay }?.kg ?: cfg.profile.weightKg
     SectionTitle("Pas (Health Connect)")
@@ -82,5 +93,12 @@ fun StepsSettings(x: Ctx, vm: MainViewModel) {
             }
             Switch(cfg.stepsAdjust, { vm.saveConfig(cfg.copy(stepsAdjust = it)) })
         }
+    }
+    SectionTitle("Récupérer mon historique")
+    Panel {
+        Hint("Une seule fois, pour quitter Zepp : reprend tes pas et tes pesées jusqu'à 5 ans en arrière. " +
+            "Une pesée déjà notée dans Suical n'est jamais remplacée. Ensuite, le poids se note ici uniquement.")
+        Hint("Health Connect te demandera « Pas », « Poids » et l'accès aux données passées.", Modifier.padding(top = 6.dp))
+        GhostButton("Récupérer l'historique (pas et poids)", Modifier.fillMaxWidth().padding(top = 10.dp), onClick = import)
     }
 }
