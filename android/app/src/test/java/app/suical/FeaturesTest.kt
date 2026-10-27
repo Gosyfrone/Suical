@@ -16,6 +16,7 @@ import app.suical.domain.Weight
 import app.suical.domain.WeightStats
 import app.suical.domain.dailyTotals
 import app.suical.domain.periodStats
+import app.suical.domain.recentEntries
 import app.suical.domain.entryNut
 import app.suical.llm.LlmImport
 import app.suical.reminders.Reminders
@@ -224,6 +225,19 @@ class FeaturesTest {
         assertTrue(back.ready)
         assertEquals(125.0, back.ing.getValue("pates"), 0.0)
         assertEquals(SLOT_BREAKFAST, Backup.fromJson(Backup.toJson(fresh), fresh).dish("petit_dej")!!.slot)
+    }
+
+    @Test fun recentsKeepLatestOfEachDishFoodOrFreeEntry() {
+        val log = listOf(
+            LogEntry(1, "bolognaise", 100, false, emptyMap()),
+            LogEntry(2, "", 200, false, mapOf("bananes" to 1.0), name = "Bananes"),
+            LogEntry(3, "", 300, false, mapOf("bananes" to 2.0), name = "Bananes"),
+            LogEntry(4, "bolognaise", 400, false, emptyMap()),
+            LogEntry(5, "", 500, false, emptyMap(), "Kebab", mapOf("kcal" to 900.0)),
+        )
+        val r = recentEntries(log)
+        assertEquals(listOf(5L, 4L, 3L), r.map { it.id })
+        assertEquals(2.0, r[2].ing.getValue("bananes"), 0.0) // la dernière quantité est reprise
     }
 
     // ---- sauvegarde ----

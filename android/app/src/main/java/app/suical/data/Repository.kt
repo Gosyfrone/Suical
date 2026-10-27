@@ -143,20 +143,24 @@ class Repository(private val db: SuicalDb) {
      * sinon retire les ingrédients du stock ; s'il n'y a pas de quoi, le repas est noté sans toucher au stock.
      * @return true si le stock a été utilisé.
      */
-    suspend fun logDish(s: AppState, c: Calc, d: Dish, day: Long, slot: Int, fromStock: Boolean): Boolean {
-        val e = LogEntry(0, d.id, System.currentTimeMillis(), false, c.effIng(d), day = day, slot = slot, fromStock = false)
-        return tx {
-            val taken = if (fromStock) take(s, c, e) else e
-            addLog(taken)
-            taken.usesStock
-        }
+    suspend fun logDish(s: AppState, c: Calc, d: Dish, day: Long, slot: Int, fromStock: Boolean): Boolean =
+        logEntry(s, c, LogEntry(0, d.id, System.currentTimeMillis(), false, c.effIng(d), day = day, slot = slot, fromStock = false), fromStock)
+
+    /** Note une ligne préparée à l'écran (plat ajusté, aliment), prise dans le stock si `fromStock` et si possible. */
+    suspend fun logEntry(s: AppState, c: Calc, e: LogEntry, fromStock: Boolean): Boolean = tx {
+        val taken = if (fromStock) take(s, c, e) else e.copy(ready = false, fromStock = false)
+        addLog(taken)
+        taken.usesStock
     }
 
-    /** Prend dans le stock ce que la ligne représente : une portion prête, sinon les ingrédients (s'il y en a assez). */
+    /**
+     * Prend dans le stock ce que la ligne représente : une portion prête si c'est le plat tel quel,
+     * sinon les ingrédients (s'il y en a assez).
+     */
     private suspend fun take(s: AppState, c: Calc, e: LogEntry): LogEntry {
         val d = s.dish(e.dishId)
         val ready = d?.let { s.ready[it.id] } ?: 0
-        if (d != null && ready > 0) {
+        if (d != null && ready > 0 && e.ing == c.effIng(d)) {
             setReady(d.id, ready - 1)
             return e.copy(ready = true, fromStock = false)
         }
@@ -185,6 +189,15 @@ class Repository(private val db: SuicalDb) {
         val next = if (on) take(s, c, e) else giveBack(s, e)
         updateLog(next)
         next.usesStock == on
+    }
+
+    /** Change les ingrédients d'une ligne (pas du plat). Si elle avait pris dans le stock, le stock suit la différence. */
+    suspend fun setEntryIng(s: AppState, e: LogEntry, ing: Map<String, Double>) = tx {
+        if (e.fromStock) for (k in e.ing.keys + ing.keys) {
+            val back = (e.ing[k] ?: 0.0) - (ing[k] ?: 0.0)
+            if (back != 0.0) setStock(k, s.stockOf(k) + back)
+        }
+        updateLog(e.copy(ing = ing))
     }
 
     suspend fun moveEntry(e: LogEntry, day: Long, slot: Int) = updateLog(e.copy(day = day, slot = slot))

@@ -73,6 +73,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         say(if (fromStock && !used) "${d.name} : noté, mais pas assez de stock pour le déduire" else "${d.name} : c'est noté")
     }
 
+    /** Note une ligne préparée dans la fenêtre d'ajout (plat ajusté, aliment et sa quantité). */
+    fun logEntry(e: LogEntry, fromStock: Boolean) = act { x ->
+        val used = repo.logEntry(x.s, x.c, e, fromStock)
+        val name = x.s.dish(e.dishId)?.name ?: e.name
+        say(if (fromStock && !used) "$name : noté, mais pas assez de stock pour le déduire" else "$name : c'est noté")
+    }
+
+    fun setEntryIng(e: LogEntry, ing: Map<String, Double>) = act { x -> repo.setEntryIng(x.s, e, ing); say("Repas modifié") }
+
     fun removeEntry(e: LogEntry) = act { x -> repo.removeEntry(x.s, e); say("Repas retiré") }
 
     fun setEntryStock(e: LogEntry, on: Boolean) = act { x ->

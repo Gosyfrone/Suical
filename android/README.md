@@ -45,7 +45,8 @@ puis « Coller la réponse » met à jour les aliments. Les prompts sont tous da
 | Journal par jour (flèches, glisser, semaine, calendrier) et par moment : petit-déj, midi, collation, soir | Journal |
 | Repas prévus à valider, au bon jour même après coup ; « pris dans mon stock » réglable par repas | Journal |
 | Pesée du jour affiché | Journal |
-| Repas hors plan (nom + kcal + macros) ou un de mes plats, à n'importe quel moment | Journal > + |
+| Ajout unifié : récents, plats (portions, ingrédients ajustés pour ce repas), aliments avec quantité, scan, saisie libre | Journal > + |
+| Modifier les ingrédients d'un repas déjà noté sans toucher au plat (le stock suit) | Journal > un repas |
 | Plan de 1 à 28 jours, jour 1 réglable | Réglages > Plan |
 
 Base de données en version 3 (migrations automatiques v1 → v2 → v3 ; la v3 range les anciens repas au jour et au moment de leur saisie).

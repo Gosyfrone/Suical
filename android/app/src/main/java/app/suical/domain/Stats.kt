@@ -20,6 +20,16 @@ fun Calc.dailyTotals(fromDay: Long, toDay: Long): Map<Long, Nut> {
     return out
 }
 
+/** Derniers plats, aliments et saisies libres notés, du plus récent au plus ancien, sans doublon. */
+fun recentEntries(log: List<LogEntry>, n: Int = 10): List<LogEntry> =
+    log.sortedByDescending { it.t }.distinctBy {
+        when {
+            it.dishId.isNotEmpty() -> "d:" + it.dishId
+            it.custom.isEmpty() && it.ing.size == 1 -> "f:" + it.ing.keys.first()
+            else -> "n:" + it.name.lowercase()
+        }
+    }.take(n)
+
 fun todayEpochDay(): Long = LocalDate.now().toEpochDay()
 
 object WeightStats {

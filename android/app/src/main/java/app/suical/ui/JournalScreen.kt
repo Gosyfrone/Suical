@@ -10,16 +10,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,7 +39,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -88,6 +90,9 @@ private const val FUTURE_DAYS = 7
 
 /** Un repas prévu (plan ou « tous les jours ») pas encore noté ce jour-là. */
 private class Planned(val dish: Dish, val slot: Int)
+
+/** Fenêtre d'ajout ouverte sur un moment, éventuellement directement sur un plat prévu à ajuster. */
+private class AddRequest(val slot: Int, val start: AddStep = AddStep.Browse, val stock: Boolean = false)
 
 /**
  * Journal : un jour à la fois, qu'on fait défiler d'un geste ou avec les flèches. Chaque jour regroupe ses repas
@@ -211,7 +216,7 @@ private fun DayPage(x: Ctx, vm: MainViewModel, day: Long) {
         }
     }
 
-    var adding by rememberSaveable { mutableStateOf<Int?>(null) }
+    var adding by remember { mutableStateOf<AddRequest?>(null) }
     var opened by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -219,18 +224,19 @@ private fun DayPage(x: Ctx, vm: MainViewModel, day: Long) {
         item { WeightPanel(x, vm, day) }
         items(SLOTS, key = { it.first }) { (slot, label) ->
             SlotSection(x, vm, label, entries.filter { it.slot == slot }, planned.filter { it.slot == slot }, day,
-                onAdd = { adding = slot }, onOpen = { opened = it.id })
+                onAdd = { adding = AddRequest(slot) }, onOpen = { opened = it.id },
+                onEdit = { p -> adding = AddRequest(p.slot, AddStep.Items(p.dish.id, p.dish.name, x.c.effIng(p.dish)), stock = true) })
         }
     }
 
-    adding?.let { slot -> AddSheet(x, vm, day, slot) { adding = null } }
+    adding?.let { r -> AddSheet(x, vm, day, r.slot, r.start, r.stock) { adding = null } }
     opened?.let { id -> x.s.log.firstOrNull { it.id == id }?.let { e -> EntrySheet(x, vm, e) { opened = null } } }
 }
 
 @Composable
 private fun SlotSection(
     x: Ctx, vm: MainViewModel, label: String, entries: List<LogEntry>, planned: List<Planned>, day: Long,
-    onAdd: () -> Unit, onOpen: (LogEntry) -> Unit,
+    onAdd: () -> Unit, onOpen: (LogEntry) -> Unit, onEdit: (Planned) -> Unit,
 ) {
     val kcal = entries.sumOf { x.c.entryNut(it).getValue("kcal") }
     Column {
@@ -250,7 +256,7 @@ private fun SlotSection(
             for (p in planned) {
                 if (!firstRow) Divider()
                 firstRow = false
-                PlannedRow(x, vm, p, day)
+                PlannedRow(x, vm, p, day) { onEdit(p) }
             }
         }
     }
@@ -262,10 +268,23 @@ private fun EntryRow(x: Ctx, e: LogEntry, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(name, fontWeight = FontWeight.SemiBold)
-            Hint(stockLabel(e))
+            Hint(listOfNotNull(foodQty(x, e), stockLabel(e), adjusted(x, e)).joinToString(" · "))
         }
         Text(nf(x.c.entryNut(e).getValue("kcal")) + " kcal", fontWeight = FontWeight.Bold)
     }
+}
+
+/** Quantité d'un aliment noté seul (« 3 pièces »). */
+private fun foodQty(x: Ctx, e: LogEntry): String? {
+    if (e.dishId.isNotEmpty() || e.custom.isNotEmpty() || e.ing.size != 1) return null
+    val (id, q) = e.ing.entries.first()
+    return fmtQty(x.s.foods[id], q)
+}
+
+/** Un plat dont les ingrédients ont été changés pour ce repas. */
+private fun adjusted(x: Ctx, e: LogEntry): String? {
+    val d = x.s.dish(e.dishId) ?: return null
+    return if (e.ing.isNotEmpty() && e.ing != x.c.effIng(d)) "ajusté" else null
 }
 
 private fun stockLabel(e: LogEntry) = when {
@@ -276,14 +295,14 @@ private fun stockLabel(e: LogEntry) = when {
 }
 
 @Composable
-private fun PlannedRow(x: Ctx, vm: MainViewModel, p: Planned, day: Long) {
+private fun PlannedRow(x: Ctx, vm: MainViewModel, p: Planned, day: Long, onEdit: () -> Unit) {
     val d = p.dish
     val ready = x.s.ready[d.id] ?: 0
     val possible = x.c.possible(d).n
     val nut = x.c.nutOf(x.c.effIng(d))
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("PRÉVU", fontSize = 10.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+            Text("PRÉVU · TOUCHER POUR AJUSTER", fontSize = 10.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
             Text(d.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when {
                 ready > 0 -> Hint("${nf(nut.getValue("kcal"))} kcal · $ready ${if (ready > 1) "portions prêtes" else "portion prête"}")
@@ -315,103 +334,41 @@ private fun WeightPanel(x: Ctx, vm: MainViewModel, day: Long) {
     }
 }
 
-/** Détail d'une ligne du journal : moment, prise dans le stock, suppression. */
+/** Détail d'une ligne du journal : moment, ingrédients de ce repas, prise dans le stock, suppression. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EntrySheet(x: Ctx, vm: MainViewModel, e: LogEntry, onDismiss: () -> Unit) {
     val name = x.s.dish(e.dishId)?.name ?: e.name.ifEmpty { "Repas" }
+    var ing by remember(e.id, e.ing) { mutableStateOf(e.ing) }
+    val changed = ing != e.ing
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.background) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxHeight(0.92f).imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            MacroRow(x.c.entryNut(e))
+            MacroRow(if (e.custom.isEmpty() && ing.isNotEmpty()) x.c.nutOf(ing) else x.c.entryNut(e))
             Choice(SLOTS, e.slot, Modifier.fillMaxWidth(), label = "Moment") { vm.moveEntry(e, it) }
+            if (e.ing.isNotEmpty()) {
+                IngredientsEditor(x, ing) { ing = it }
+                if (e.dishId.isNotEmpty()) Hint("Ne change que ce repas, pas le plat.")
+            }
             if (e.ing.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Pris dans mon stock", fontWeight = FontWeight.SemiBold)
                         Hint(if (e.ready) "Une portion prête a été utilisée" else if (e.fromStock) "Les ingrédients ont été retirés du stock" else "Le stock n'a pas été touché")
                     }
-                    Switch(e.usesStock, { vm.setEntryStock(e, it) })
+                    Switch(e.usesStock, { vm.setEntryStock(e, it) }, enabled = !changed)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
                 DangerButton("Supprimer") { vm.removeEntry(e); onDismiss() }
-                PrimaryButton("OK", modifier = Modifier.weight(1f), onClick = onDismiss)
-            }
-        }
-    }
-}
-
-private const val ADD_DISH = 0
-private const val ADD_FREE = 1
-
-/** Ajout à un moment du jour : un de mes plats, ou une saisie libre. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddSheet(x: Ctx, vm: MainViewModel, day: Long, slot: Int, onDismiss: () -> Unit) {
-    var mode by rememberSaveable { mutableStateOf(ADD_DISH) }
-    val slotLabel = SLOTS.first { it.first == slot }.second
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.background) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Ajouter", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            Hint("$slotLabel · ${LocalDate.ofEpochDay(day).format(longFmt)}")
-            Segmented(listOf(ADD_DISH to "Un de mes plats", ADD_FREE to "Saisie libre"), mode, fill = true) { mode = it }
-            if (mode == ADD_DISH) DishChoice(x, onDismiss) { d, fromStock -> vm.logDish(d, day, slot, fromStock); onDismiss() }
-            else FreeEntry(onDismiss) { n, k, p, g, l -> vm.addExtra(n, k, p, g, l, day, slot); onDismiss() }
-        }
-    }
-}
-
-@Composable
-private fun DishChoice(x: Ctx, onDismiss: () -> Unit, onPick: (Dish, Boolean) -> Unit) {
-    var query by rememberSaveable { mutableStateOf("") }
-    var fromStock by rememberSaveable { mutableStateOf(false) }
-    SearchField(query, { query = it }, "Chercher un plat")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("Prendre dans mon stock", fontWeight = FontWeight.SemiBold)
-            Hint("Retire une portion prête ou les ingrédients")
-        }
-        Switch(fromStock, { fromStock = it })
-    }
-    val list = x.s.dishes.filter { matchesQuery(it.name, query) }
-    Column(Modifier.heightIn(max = 360.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))) {
-        LazyColumn(Modifier.padding(horizontal = 16.dp)) {
-            items(list, key = { it.id }) { d ->
-                Row(Modifier.fillMaxWidth().clickable { onPick(d, fromStock) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(d.name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Hint(nf(x.c.nutOf(x.c.effIng(d)).getValue("kcal")) + " kcal")
+                PrimaryButton(if (changed) "Enregistrer" else "OK", enabled = !changed || ing.isNotEmpty(), modifier = Modifier.weight(1f)) {
+                    if (changed) vm.setEntryIng(e, ing)
+                    onDismiss()
                 }
             }
         }
-        if (list.isEmpty()) Hint("Aucun plat ne correspond.", Modifier.padding(16.dp))
-    }
-    GhostButton("Annuler", Modifier.fillMaxWidth(), onClick = onDismiss)
-}
-
-/** Repas hors plan : valeurs saisies à la main, comptées dans les stats sans toucher au stock. */
-@Composable
-private fun FreeEntry(onDismiss: () -> Unit, onAdd: (String, Double, Double, Double, Double) -> Unit) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var kcal by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var p by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var g by rememberSaveable { mutableDoubleStateOf(0.0) }
-    var l by rememberSaveable { mutableDoubleStateOf(0.0) }
-    Hint("Tu saisis les valeurs toi-même.")
-    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nom (restaurant, snack…)") }, singleLine = true)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        NumField(kcal, "Calories (kcal)", Modifier.weight(1f)) { kcal = it }
-        NumField(p, "Protéines (g)", Modifier.weight(1f)) { p = it }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        NumField(g, "Glucides (g)", Modifier.weight(1f)) { g = it }
-        NumField(l, "Lipides (g)", Modifier.weight(1f)) { l = it }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
-        GhostButton("Annuler", onClick = onDismiss)
-        PrimaryButton("Ajouter au journal", enabled = kcal > 0, modifier = Modifier.weight(1f)) { onAdd(name.trim(), kcal, p, g, l) }
     }
 }
 
