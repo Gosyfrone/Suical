@@ -19,13 +19,13 @@ import app.suical.MainActivity
 import app.suical.data.Repository
 import app.suical.domain.Calc
 import app.suical.domain.PlanConfig
-import app.suical.domain.todayEpochDay
+import app.suical.ui.fmtQty
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
-/** Rappel quotidien : stock bas et veille de session de cuisine. */
+/** Rappel quotidien : stock bas et ingrédients qui manquent pour la cuisine prévue. */
 object Reminders {
     private const val WORK = "suical-reminders"
     private const val CHANNEL = "suical_reminders"
@@ -47,10 +47,9 @@ object Reminders {
         wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 
-    /** Les lignes du rappel pour ce jour (vide = rien à signaler). Pur, donc testable. */
-    fun messages(c: Calc, today: Long): List<String> {
+    /** Les lignes du rappel (vide = rien à signaler). Pur, donc testable. */
+    fun messages(c: Calc): List<String> {
         val s = c.s
-        val cfg = s.config
         val out = ArrayList<String>()
 
         val low = s.foods.values.filter { c.daysLeft(it.id) < LOW_STOCK_DAYS }
@@ -61,15 +60,9 @@ object Reminders {
             }
         }
 
-        val dayIdx = Math.floorMod(today - cfg.startEpochDay, cfg.period.toLong()).toInt()
-        for (session in cfg.sessions) {
-            val first = session.days.filter { it < cfg.days }.minOrNull() ?: continue
-            if (dayIdx != Math.floorMod(first - 1, cfg.period)) continue
-            val missing = c.sessionPlan(session).missing
-            out += "Demain : " + session.whenLabel.lowercase() + ", session de cuisine." +
-                if (missing.isEmpty()) " Stock suffisant." else " Il manque : " + missing.joinToString(", ") { m ->
-                    s.foods[m.foodId]?.name?.lowercase() ?: m.foodId
-                }
+        val missing = c.cookPlan(s.cook).missing
+        if (missing.isNotEmpty()) out += "Pour ta cuisine prévue, il manque : " + missing.joinToString(", ") { m ->
+            (s.foods[m.foodId]?.name?.lowercase() ?: m.foodId) + " (" + fmtQty(s.foods[m.foodId], m.lack) + ")"
         }
         return out
     }
@@ -99,7 +92,7 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val s = Repository(applicationContext).state().first()
         if (!s.config.remindersOn) return Result.success()
-        Reminders.notify(applicationContext, Reminders.messages(Calc.of(s), todayEpochDay()))
+        Reminders.notify(applicationContext, Reminders.messages(Calc.of(s)))
         return Result.success()
     }
 }

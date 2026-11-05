@@ -125,20 +125,16 @@ class FeaturesTest {
     }
 
     // ---- rappels ----
-    @Test fun reminderAnnouncesSessionTheDayBefore() {
-        val s = fresh.copy(config = PlanConfig(startEpochDay = monday))
-        val c = Calc.of(s)
-        val sunday = monday - 1
-        val lines = Reminders.messages(c, sunday)
-        assertTrue(lines.toString(), lines.any { it.startsWith("Demain : dimanche soir") })
-        val wednesday = monday + 2
-        assertTrue(Reminders.messages(c, wednesday).any { it.startsWith("Demain : mercredi soir") })
-        assertTrue(Reminders.messages(c, monday + 1).none { it.startsWith("Demain") })
+    @Test fun reminderListsWhatTheCookSelectionLacks() {
+        assertTrue(Reminders.messages(Calc.of(fresh)).none { it.startsWith("Pour ta cuisine") })
+        val s = fresh.copy(cook = mapOf("bolognaise" to 2), stock = fresh.stock + ("macreuse" to 100.0))
+        val line = Reminders.messages(Calc.of(s)).single { it.startsWith("Pour ta cuisine prévue") }
+        assertTrue(line, "macreuse hachée (200 g)" in line)
     }
 
     @Test fun reminderListsLowStockOnlyForUsedFoods() {
         val s = fresh.copy(stock = fresh.stock + ("pates" to 10.0) + ("whey" to 100000.0))
-        val lines = Reminders.messages(Calc.of(s), monday + 1)
+        val lines = Reminders.messages(Calc.of(s))
         val low = lines.single { it.startsWith("Stock bas") }
         assertTrue(low, "pâtes" in low)
         assertTrue(low, "whey" !in low)

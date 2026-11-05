@@ -9,7 +9,6 @@ import app.suical.domain.LogEntry
 import app.suical.domain.Lever
 import app.suical.domain.PlanConfig
 import app.suical.domain.Profile
-import app.suical.domain.Session
 import app.suical.domain.Weight
 import app.suical.domain.Nutrients
 import org.json.JSONArray
@@ -34,11 +33,6 @@ object Backup {
         put("stepsAdjust", c.stepsAdjust)
         put("remindersOn", c.remindersOn)
         put("reminderHour", c.reminderHour)
-        put("sessions", JSONArray().also { a ->
-            c.sessions.forEach { s ->
-                a.put(JSONObject().put("id", s.id).put("when", s.whenLabel).put("days", JSONArray(s.days)))
-            }
-        })
         put("levers", JSONArray().also { a ->
             c.levers.forEach { l ->
                 a.put(JSONObject().put("id", l.id).put("label", l.label).put("item", l.item).put("scope", l.scope)
@@ -70,13 +64,6 @@ object Backup {
             stepsAdjust = o.optBoolean("stepsAdjust", d.stepsAdjust),
             remindersOn = o.optBoolean("remindersOn", d.remindersOn),
             reminderHour = o.optInt("reminderHour", d.reminderHour).coerceIn(0, 23),
-            sessions = o.optJSONArray("sessions")?.let { a ->
-                List(a.length()) { i ->
-                    val s = a.getJSONObject(i)
-                    val days = s.optJSONArray("days")
-                    Session(s.getString("id"), s.optString("when", ""), List(days?.length() ?: 0) { days!!.getInt(it) })
-                }
-            } ?: d.sessions,
             levers = o.optJSONArray("levers")?.let { a ->
                 List(a.length()) { i ->
                     val l = a.getJSONObject(i)

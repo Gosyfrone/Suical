@@ -4,9 +4,6 @@ import java.time.LocalDate
 
 val WEEKDAYS = listOf("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche")
 
-/** Une session de cuisine en lot, qui couvre certains jours du plan (indices 0..jours-1). */
-data class Session(val id: String, val whenLabel: String, val days: List<Int>)
-
 /**
  * Un levier = une quantité qu'on ajuste pour atteindre l'objectif calorique.
  * `scope` : "repas" (tous les repas contenant l'aliment) ou l'identifiant d'un plat.
@@ -56,10 +53,6 @@ data class PlanConfig(
     val stepsAdjust: Boolean = true,
     val remindersOn: Boolean = false,
     val reminderHour: Int = 18,
-    val sessions: List<Session> = listOf(
-        Session("s1", "Dimanche soir, au retour", listOf(0, 1, 2)),
-        Session("s2", "Mercredi soir", listOf(3, 4)),
-    ),
     val levers: List<Lever> = listOf(
         Lever("pates", "Pâtes par repas", "pates", "repas", 125.0, 85.0, 175.0, 1),
         Lever("avoine_bol", "Avoine du bol", "avoine", "bol_avoine", 60.0, 45.0, 100.0, 2),

@@ -18,7 +18,6 @@ import app.suical.domain.GROUP_MEAL
 import app.suical.domain.LogEntry
 import app.suical.domain.Nutrients
 import app.suical.domain.PlanConfig
-import app.suical.domain.Session
 import app.suical.domain.todayEpochDay
 import app.suical.health.Health
 import app.suical.llm.Change
@@ -132,12 +131,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun setTarget(t: Int?) { viewModelScope.launch { repo.setTarget(t) } }
     fun setSauce(v: String) { viewModelScope.launch { repo.setSauce(v) } }
 
-    fun cook(session: Session) = act { x ->
-        val p = x.c.sessionPlan(session)
-        if (p.missing.isNotEmpty() || p.batch.isEmpty()) return@act
+    // ---- cuisine ----
+    fun addCook(dishId: String, delta: Int) { viewModelScope.launch { repo.addCook(dishId, delta) } }
+    fun clearCook() { viewModelScope.launch { repo.setCook(emptyMap()) } }
+
+    /** Remplit la sélection avec ce que le planning demande et que le frigo n'a pas déjà. */
+    fun cookFromPlan() = act { x ->
+        val batch = x.c.planBatch()
+        repo.setCook(batch)
+        say(if (batch.isEmpty()) "Le frigo couvre déjà le planning" else "Portions reprises du planning")
+    }
+
+    /** Retire les ingrédients du stock, met les portions au frigo et vide la sélection. */
+    fun cook() = act { x ->
+        val batch = x.s.cook.filterKeys { x.s.dish(it) != null }
+        val p = x.c.cookPlan(batch)
+        if (p.missing.isNotEmpty() || batch.isEmpty()) return@act
         repo.tx {
             p.need.forEach { (k, q) -> repo.setStock(k, x.s.stockOf(k) - q) }
-            p.batch.forEach { (id, n) -> repo.setReady(id, (x.s.ready[id] ?: 0) + n) }
+            batch.forEach { (id, n) -> repo.setReady(id, (x.s.ready[id] ?: 0) + n) }
+            repo.setCook(emptyMap())
         }
         say("Portions ajoutées au frigo")
     }

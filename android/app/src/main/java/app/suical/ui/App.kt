@@ -61,6 +61,7 @@ fun App(vm: MainViewModel) {
     var sub by rememberSaveable { mutableStateOf<String?>(null) }
     var suivi by rememberSaveable { mutableIntStateOf(SUIVI_STATS) }
     var courses by rememberSaveable { mutableIntStateOf(COURSES_BUY) }
+    var week by rememberSaveable { mutableIntStateOf(WEEK_PLAN) }
     var food by rememberSaveable { mutableStateOf<String?>(null) }
     var journalDay by rememberSaveable { mutableLongStateOf(todayEpochDay()) }
     val snack = remember { SnackbarHostState() }
@@ -112,7 +113,7 @@ fun App(vm: MainViewModel) {
                 SUB_REGLAGES -> SettingsScreen(ctx, vm)
                 else -> when (tab) {
                     TAB_TODAY -> JournalScreen(ctx, vm, journalDay) { journalDay = it }
-                    TAB_WEEK -> WeekScreen(ctx, vm) { tab = TAB_SUIVI; suivi = SUIVI_MAINT }
+                    TAB_WEEK -> WeekScreen(ctx, vm, week, { week = it }) { tab = TAB_SUIVI; suivi = SUIVI_MAINT }
                     TAB_SUIVI -> SuiviScreen(ctx, vm, suivi) { suivi = it }
                     TAB_COURSES -> CoursesScreen(ctx, vm, courses) { courses = it }
                     else -> PlusScreen(ctx) { sub = it; food = null }

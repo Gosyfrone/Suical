@@ -13,12 +13,7 @@ typealias Nut = Map<String, Double>
 data class Possible(val n: Int, val limit: String?)
 data class BuyRow(val foodId: String, val packs: Int, val cost: Double)
 data class Missing(val foodId: String, val lack: Double)
-data class SessionPlan(
-    val batch: Map<String, Int>,
-    val need: Ing,
-    val missing: List<Missing>,
-    val fresh: List<Pair<Dish, Int>>,
-)
+data class CookPlan(val need: Ing, val missing: List<Missing>)
 
 /**
  * Tous les calculs dérivés de l'état (fonctions pures, testables sans Android).
@@ -118,23 +113,27 @@ class Calc private constructor(
         BuyRow(f.id, packs, packs * f.price)
     }
 
-    fun sessionPlan(session: Session): SessionPlan {
-        val batch = LinkedHashMap<String, Int>()
-        val days = session.days.filter { it < s.plan.size }
-        for (i in days) for (id in s.plan[i]) {
-            val d = s.dish(id) ?: continue
-            if (d.fresh) continue
-            batch[id] = (batch[id] ?: 0) + 1
-        }
+    /** Ingrédients pour cuisiner ces portions (plat -> nombre), et ce qui manque dans le stock. */
+    fun cookPlan(batch: Map<String, Int>): CookPlan {
         val need = LinkedHashMap<String, Double>()
-        for ((id, n) in batch) for ((k, q) in effIng(s.dish(id)!!)) need[k] = (need[k] ?: 0.0) + q * n
-        val missing = need.filter { (k, q) -> s.stockOf(k) < q }.map { (k, q) -> Missing(k, q - s.stockOf(k)) }
-        val fresh = ArrayList<Pair<Dish, Int>>()
-        for (i in days) for (id in s.plan[i]) {
-            val d = s.dish(id)
-            if (d != null && d.fresh && d.group == GROUP_MEAL) fresh += d to i
+        for ((id, n) in batch) {
+            val d = s.dish(id) ?: continue
+            if (n <= 0) continue
+            for ((k, q) in effIng(d)) need[k] = (need[k] ?: 0.0) + q * n
         }
-        return SessionPlan(batch, need, missing, fresh)
+        val missing = need.filter { (k, q) -> s.stockOf(k) < q }.map { (k, q) -> Missing(k, q - s.stockOf(k)) }
+        return CookPlan(need, missing)
+    }
+
+    /** Portions à cuisiner d'après le planning : les repas à faire en lot, moins les portions déjà au frigo. */
+    fun planBatch(): Map<String, Int> {
+        val out = LinkedHashMap<String, Int>()
+        for (day in s.plan) for (id in day) {
+            val d = s.dish(id) ?: continue
+            if (d.fresh || d.group != GROUP_MEAL) continue
+            out[id] = (out[id] ?: 0) + 1
+        }
+        return out.mapValues { (id, n) -> n - (s.ready[id] ?: 0) }.filterValues { it > 0 }
     }
 
     /** Kcal par jour qu'ajoute 1 g de ce levier, compte tenu du plan. */

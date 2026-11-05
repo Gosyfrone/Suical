@@ -20,6 +20,7 @@ private const val K_TARGET = "target"
 private const val K_SAUCE = "sauce"
 private const val K_LLM = "llm_pkg"
 private const val K_CONFIG = "config"
+private const val K_COOK = "cook"
 
 private fun encodeIng(m: Map<String, Double>) = m.entries.joinToString(";") { "${it.key}=${it.value}" }
 private fun decodeIng(s: String): Map<String, Double> =
@@ -27,6 +28,8 @@ private fun decodeIng(s: String): Map<String, Double> =
         val p = it.split("=")
         if (p.size == 2) p[1].toDoubleOrNull()?.let { v -> p[0] to v } else null
     }.toMap()
+private fun decodeCook(s: String?): Map<String, Int> =
+    decodeIng(s ?: "").mapValues { it.value.toInt() }.filterValues { it > 0 }
 
 /**
  * Seul point d'accès à la base. Les méthodes `suspend` sont de petites écritures ;
@@ -79,6 +82,7 @@ class Repository(private val db: SuicalDb) {
             config = config,
             weights = weights.map { Weight(it.day, it.kg) },
             steps = steps.associate { it.day to it.count },
+            cook = decodeCook(set[K_COOK]),
         )
     }
 
@@ -103,6 +107,7 @@ class Repository(private val db: SuicalDb) {
         setSetting(K_SAUCE, s.sauce)
         setSetting(K_LLM, s.llmPkg)
         setConfig(s.config)
+        setCook(s.cook)
         setSetting(K_SEEDED, "1")
     }
 
@@ -234,5 +239,15 @@ class Repository(private val db: SuicalDb) {
     suspend fun setSauce(s: String) = setSetting(K_SAUCE, s)
     suspend fun setLlmPkg(p: String) = setSetting(K_LLM, p)
     suspend fun setConfig(c: PlanConfig) = setSetting(K_CONFIG, Backup.configToJson(c).toString())
+
+    // ---- cuisine ----
+    suspend fun setCook(batch: Map<String, Int>) =
+        setSetting(K_COOK, batch.filterValues { it > 0 }.entries.joinToString(";") { "${it.key}=${it.value}" })
+
+    /** Ajoute (ou retire) des portions à la sélection, relue en base pour ne perdre aucun appui rapide. */
+    suspend fun addCook(dishId: String, delta: Int) = tx {
+        val cur = decodeCook(dao.setting(K_COOK))
+        setCook(cur + (dishId to ((cur[dishId] ?: 0) + delta)))
+    }
     private suspend fun setSetting(k: String, v: String) = dao.put(SettingE(k, v))
 }

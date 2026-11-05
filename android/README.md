@@ -18,7 +18,7 @@ Ou ouvrir le dossier `android/` dans Android Studio et lancer ▶.
 
 | Dossier | Rôle |
 |---|---|
-| `domain/` | Kotlin pur : modèles, `Nutrients` (liste des nutriments), `Calc` (tous les calculs), `Config` (leviers, sessions), `Defaults` |
+| `domain/` | Kotlin pur : modèles, `Nutrients` (liste des nutriments), `Calc` (tous les calculs), `Config` (plan, leviers), `Defaults` |
 | `data/` | Room (`Db.kt`), `Repository` (seul accès à la base), `Backup` (JSON, compatible avec l'export du site) |
 | `llm/` | `Prompts` (construction des demandes), `LlmBridge` (envoi vers l'app IA, presse-papier), `LlmImport` (lecture de la réponse) |
 | `ui/` | `MainViewModel` (toutes les actions) et un fichier par écran |
@@ -39,7 +39,8 @@ puis « Coller la réponse » met à jour les aliments. Les prompts sont tous da
 | Propositions de l'IA applicables en un tap (cases à décocher) | Semaine |
 | Photo d'étiquette envoyée à l'IA | Aliments > un aliment |
 | Scan de code-barres (Open Food Facts, seul usage d'internet) | Aliments |
-| Rappels : stock bas, veille de session de cuisine | Réglages > Rappels |
+| Cuisine en lot : portions choisies par plat (ou reprises du planning), ingrédients et quantités, ce qui manque au stock | Semaine > Cuisine |
+| Rappels : stock bas, ingrédients qui manquent pour la cuisine prévue | Réglages > Rappels |
 | Widget : calories du jour + bouton « Valider » du repas prévu | Écran d'accueil |
 | Statistiques et courbe de poids, maintenance observée | « Stats » en haut |
 | Journal par jour (flèches, glisser, semaine, calendrier) et par moment : petit-déj, midi, collation, soir | Journal |

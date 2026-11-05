@@ -1,6 +1,7 @@
 package app.suical.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,15 +39,29 @@ import app.suical.llm.Prompts
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+const val WEEK_PLAN = 0
+const val WEEK_COOK = 1
+
+/** Onglet Semaine : planning et cuisine sous un même sélecteur. */
 @Composable
-fun WeekScreen(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
+fun WeekScreen(x: Ctx, vm: MainViewModel, section: Int, onSection: (Int) -> Unit, onMaintenance: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.padding(horizontal = 16.dp)) { ScreenHeader("Semaine", "Plan de ${x.s.config.days} jours") }
+        Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
+            Segmented(listOf(WEEK_PLAN to "Planning", WEEK_COOK to "Cuisine"), section, fill = true, onSelect = onSection)
+        }
+        if (section == WEEK_PLAN) PlanScreen(x, vm, onMaintenance) else CookScreen(x, vm)
+    }
+}
+
+@Composable
+private fun PlanScreen(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
     val context = LocalContext.current
     val avg = x.c.nutOf(x.c.weekAvgIng())
     val meals = x.s.dishes.filter { it.group == GROUP_MEAL }
     var changes by remember { mutableStateOf<List<Change>?>(null) }
 
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp)) {
-        item { ScreenHeader("Semaine", "Plan de ${x.s.config.days} jours") }
         item { Panel { GoalBlock(x, vm, onMaintenance) } }
 
         item {
@@ -60,37 +75,6 @@ fun WeekScreen(x: Ctx, vm: MainViewModel, onMaintenance: () -> Unit) {
                 GhostButton("Analyser avec l'IA") { vm.sendToLlm(context, Prompts.weekReview(x.c)) }
                 GhostButton("Coller les propositions") {
                     try { changes = LlmImport.parseChanges(LlmBridge.paste(context)) } catch (e: Exception) { vm.say(e.message ?: "Réponse illisible") }
-                }
-            }
-            SectionTitle("Sessions de cuisine")
-        }
-
-        for (session in x.s.config.sessions) item(key = session.id) {
-            val p = x.c.sessionPlan(session)
-            val what = p.batch.entries.joinToString(" + ") { (id, n) -> (x.s.dish(id)?.name ?: id) + " ×$n" }.ifEmpty { "Rien à préparer" }
-            Panel(Modifier.padding(vertical = 6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Hint(session.whenLabel + " · couvre " + session.days.filter { it < x.s.plan.size }.joinToString(", ") { x.s.config.dayLabel(it).lowercase() })
-                        Text(what, fontWeight = FontWeight.Bold)
-                    }
-                    PrimaryButton("Cuisiné", enabled = p.missing.isEmpty() && p.batch.isNotEmpty()) { vm.cook(session) }
-                }
-                Hint(
-                    if (p.missing.isEmpty()) "Stock suffisant"
-                    else "Manque : " + p.missing.joinToString(", ") { (x.s.foods[it.foodId]?.name?.lowercase() ?: it.foodId) + " (" + fmtQty(x.s.foods[it.foodId], it.lack) + ")" },
-                    error = p.missing.isNotEmpty())
-                if (p.fresh.isNotEmpty()) Hint("À cuisiner sur le moment : " + p.fresh.joinToString(", ") { it.first.name.lowercase() + " (" + x.s.config.dayLabel(it.second).lowercase() + ")" })
-                Column(Modifier.padding(top = 4.dp)) {
-                    var open by remember { mutableStateOf(false) }
-                    Text((if (open) "▾ " else "▸ ") + "Quantités à préparer", fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickableNoRipple { open = !open })
-                    if (open) {
-                        p.need.entries.sortedByDescending { it.value }.forEachIndexed { i, (k, q) ->
-                            Text("${i + 1}. " + fmtQty(x.s.foods[k], q) + " — " + (x.s.foods[k]?.name?.lowercase() ?: k), fontSize = 14.sp)
-                        }
-                        Hint("Ajoute la crème ou le fromage blanc au moment de réchauffer, pas avant.", Modifier.padding(top = 4.dp))
-                    }
                 }
             }
         }

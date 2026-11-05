@@ -108,6 +108,8 @@ data class AppState(
     val weights: List<Weight> = emptyList(),
     /** Pas par jour (epochDay -> nombre), lus dans Health Connect. */
     val steps: Map<Long, Int> = emptyMap(),
+    /** Portions choisies dans Semaine > Cuisine (plat -> nombre), en attente d'être cuisinées. */
+    val cook: Map<String, Int> = emptyMap(),
 ) {
     fun dish(id: String) = dishes.firstOrNull { it.id == id }
     fun stockOf(id: String) = stock[id] ?: 0.0

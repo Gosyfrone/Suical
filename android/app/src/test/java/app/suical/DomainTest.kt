@@ -37,6 +37,21 @@ class DomainTest {
         assertEquals("poulet", p.limit)
     }
 
+    @Test fun cookPlanSumsPortionsAndFlagsMissingStock() {
+        val c = Calc.of(fresh.copy(stock = fresh.stock + ("poulet" to 200.0)))
+        val p = c.cookPlan(mapOf("poulet_poivrons" to 2, "lieu_edamame" to 1))
+        assertEquals(375.0, p.need.getValue("pates"), 0.0)
+        assertEquals(300.0, p.need.getValue("poulet"), 0.0)
+        assertEquals(180.0, p.need.getValue("creme"), 0.0) // sauce des trois portions
+        assertEquals(100.0, p.missing.single { it.foodId == "poulet" }.lack, 0.0)
+        assertTrue(c.cookPlan(emptyMap()).need.isEmpty())
+    }
+
+    @Test fun planBatchSkipsFreshDishesAndReadyPortions() {
+        val c = Calc.of(fresh.copy(ready = mapOf("bolognaise" to 1, "lieu_edamame" to 5)))
+        assertEquals(mapOf("poulet_brocoli" to 3, "bolognaise" to 1, "poulet_poivrons" to 2), c.planBatch())
+    }
+
     @Test fun backupRoundTrip() {
         val s = fresh.copy(target = 2600, sauce = "fb")
         val back = Backup.fromJson(Backup.toJson(s), fresh)
@@ -44,7 +59,7 @@ class DomainTest {
         assertEquals(s.dishes, back.dishes)
         assertEquals(s.plan, back.plan)
         assertEquals(2600, back.target)
-        val cfg = s.config.copy(maint = 2500, sessions = s.config.sessions.take(1))
+        val cfg = s.config.copy(maint = 2500, reminderHour = 7)
         assertEquals(cfg, Backup.fromJson(Backup.toJson(s.copy(config = cfg)), fresh).config)
         assertEquals("fb", back.sauce)
     }
