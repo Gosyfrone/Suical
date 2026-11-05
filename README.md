@@ -7,16 +7,17 @@ aucune donnée ne quitte l'appareil.
 
 L'app Android (`android/`) reste l'outil de suivi calorique ; le site est indépendant.
 
-## Onglets
+## Écrans
+
+Pensé pour le téléphone : quatre onglets en bas de l'écran, des pages qui s'ouvrent par-dessus
+(le bouton retour du téléphone les ferme) et des panneaux qui montent du bas pour les choix.
 
 | Onglet | Rôle |
 |---|---|
-| Recettes | 37 repas et 17 petits-déj / goûters avec prix à la portion, kcal, protéines, étapes. Favoris (☆), « Pas pour moi » pour retirer une recette (restaurable en bas de liste), filtres (favoris, petit-déj, goûter, pas chères, air fryer…) et par féculent ou protéine. Créer, dupliquer, modifier, supprimer une recette |
-| Semaine | Budget du mois, planning petit-déj / midi / goûter / soir sur 5 à 7 jours, proposition automatique d'une semaine pas chère |
-| Courses | Paquets à acheter pour le planning, moins le stock, avec alerte sur la viande fraîche qui resterait |
-| Stock | Ce qui est déjà dans les placards ; « Cuisiné » dans une recette retire ses ingrédients |
-| Aliments | Créer, chercher, modifier, supprimer un aliment : prix, format, famille (féculent ou protéine), gluten, conservation, valeurs nutritionnelles |
-| Profil | Sexe, âge, taille, poids, activité (besoins estimés), budget, pâtes sans gluten, sauvegarde |
+| Recettes | 37 repas et 17 petits-déj / goûters, avec recherche, tri et un panneau Filtres (féculent, protéine, favoris, pas chères, sans gluten…). Une recette s'ouvre sur sa fiche : prix, temps, kcal, portions réglables, ingrédients, étapes, valeurs nutritionnelles. Le menu ⋯ permet de la modifier, la dupliquer ou la marquer « Pas pour moi » |
+| Semaine | Budget du mois, choix de 5 à 7 jours, une carte par jour (petit-déj, midi, goûter, soir). Toucher un repas ouvre la liste des plats ; changer un soir change aussi le midi du lendemain qui en était le reste |
+| Courses | Liste à cocher par rayon, moins le stock, avec alerte sur la viande fraîche qui resterait ; « J'ai fait les courses » ajoute au stock |
+| Moi | Profil et besoins estimés, budget, pâtes sans gluten, plafond de gluten, et les pages Aliments et prix, Stock, Recettes mises de côté, Plats déjà cuisinés, Sauvegarde |
 
 La semaine proposée prend les favoris d'abord puis les plats les moins chers, jamais les recettes retirées, au moins un soir de poulet, deux soirs au plus
 avec la même viande, une viande rouge au plus, un plafond de repas avec gluten, et finit les barquettes
@@ -39,7 +40,7 @@ Les recettes ajoutées dans une mise à jour du site apparaissent chez l'utilisa
 
 Les données sont écrites dans **IndexedDB** (base `suical`, store `state`, clé `recettes-v3`),
 avec une copie de secours en `localStorage` à chaque sauvegarde et à la fermeture de l'onglet.
-L'onglet Profil permet d'exporter en JSON (presse-papier ou fichier), de réimporter et de réinitialiser.
+La page Moi › Sauvegarder ou importer permet d'exporter en JSON (fichier ou presse-papier) et de réimporter ; Moi › Tout remettre à zéro réinitialise.
 Les données de l'ancienne version du site (clé `main`) restent dans la base, non utilisées.
 
 ## Mise en ligne sur GitHub Pages

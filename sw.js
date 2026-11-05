@@ -1,6 +1,6 @@
 /* Service worker : cache-first sur les fichiers de l'app.
    Change CACHE à chaque déploiement pour forcer la mise à jour. */
-const CACHE = "suical-v2";
+const CACHE = "suical-v3";
 const ASSETS = [
   "./",
   "./index.html",
