@@ -1,7 +1,7 @@
 {
   "name": "Suical",
-  "short_name": "Stock",
-  "description": "Suivi du stock, des plats et des apports nutritionnels.",
+  "short_name": "Suical",
+  "description": "Recettes simples et pas chères, prix par plat, budget du mois et apports nutritionnels.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

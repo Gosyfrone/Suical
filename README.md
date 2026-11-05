@@ -1,7 +1,27 @@
 # Suical
 
-Application web installable (PWA) de suivi du stock de courses, des plats et des apports
-nutritionnels. Tout fonctionne hors ligne : aucune donnée ne quitte l'appareil.
+Application web installable (PWA) de recettes simples et pas chères : prix estimé de chaque plat,
+planning de la semaine, budget du mois, liste de courses et apports nutritionnels.
+Pensée pour cuisiner seul avec un air fryer et sans congélateur. Tout fonctionne hors ligne :
+aucune donnée ne quitte l'appareil.
+
+L'app Android (`android/`) reste l'outil de suivi calorique ; le site est indépendant.
+
+## Onglets
+
+| Onglet | Rôle |
+|---|---|
+| Recettes | 37 repas et 17 petits-déj / goûters avec prix à la portion, kcal, protéines, étapes. Favoris (☆), « Pas pour moi » pour retirer une recette (restaurable en bas de liste), filtres (favoris, petit-déj, goûter, pas chères, air fryer…) et par féculent ou protéine. Créer, dupliquer, modifier, supprimer une recette |
+| Semaine | Budget du mois, planning petit-déj / midi / goûter / soir sur 5 à 7 jours, proposition automatique d'une semaine pas chère |
+| Courses | Paquets à acheter pour le planning, moins le stock, avec alerte sur la viande fraîche qui resterait |
+| Stock | Ce qui est déjà dans les placards ; « Cuisiné » dans une recette retire ses ingrédients |
+| Aliments | Créer, chercher, modifier, supprimer un aliment : prix, format, famille (féculent ou protéine), gluten, conservation, valeurs nutritionnelles |
+| Profil | Sexe, âge, taille, poids, activité (besoins estimés), budget, pâtes sans gluten, sauvegarde |
+
+La semaine proposée prend les favoris d'abord puis les plats les moins chers, jamais les recettes retirées, au moins un soir de poulet, deux soirs au plus
+avec la même viande, une viande rouge au plus, un plafond de repas avec gluten, et finit les barquettes
+de viande fraîche entamées. Petit-déj et goûters réutilisent de préférence les produits déjà achetés
+(par exemple les wraps restants du sachet). Le plat du soir se cuisine en 2 portions, la 2e fait le midi du lendemain.
 
 ## Contenu
 
@@ -14,9 +34,13 @@ nutritionnels. Tout fonctionne hors ligne : aucune donnée ne quitte l'appareil.
 
 ## Stockage
 
-Les données sont écrites dans **IndexedDB** (base `suical`, store `state`, clé `main`),
+Les recettes ajoutées dans une mise à jour du site apparaissent chez l'utilisateur au chargement suivant
+(liste `known`), sans toucher à ses recettes modifiées ni remettre celles qu'il a supprimées.
+
+Les données sont écrites dans **IndexedDB** (base `suical`, store `state`, clé `recettes-v3`),
 avec une copie de secours en `localStorage` à chaque sauvegarde et à la fermeture de l'onglet.
-L'onglet Stock permet d'exporter en JSON (presse-papier ou fichier), de réimporter et de réinitialiser.
+L'onglet Profil permet d'exporter en JSON (presse-papier ou fichier), de réimporter et de réinitialiser.
+Les données de l'ancienne version du site (clé `main`) restent dans la base, non utilisées.
 
 ## Mise en ligne sur GitHub Pages
 
